@@ -1,12 +1,17 @@
 package dev.filippotaiuti.temperature.dto;
 
 import java.math.BigDecimal;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 
 public class TemperatureMeasurementRequest {
+    @NotNull
     private BigDecimal temperature;
+    @NotNull
     private TemperatureUnit unit;
+    @NotBlank
     private String sensorId;
 
     public TemperatureMeasurementRequest() {

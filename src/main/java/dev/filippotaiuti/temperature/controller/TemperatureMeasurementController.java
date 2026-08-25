@@ -9,6 +9,7 @@ import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/measurements")
@@ -21,7 +22,7 @@ public class TemperatureMeasurementController {
     }
 
     @PostMapping
-    public TemperatureMeasurement createMeasurement(@RequestBody TemperatureMeasurementRequest request) {
+    public TemperatureMeasurement createMeasurement(@Valid @RequestBody TemperatureMeasurementRequest request) {
         return service.save(request);
     }
 }
