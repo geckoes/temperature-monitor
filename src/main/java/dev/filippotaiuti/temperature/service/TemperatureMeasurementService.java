@@ -32,4 +32,10 @@ public class TemperatureMeasurementService
     {
         return repository.findAll();
     }
+
+    public List<TemperatureMeasurement> findBySensorId(String sensorId)
+    {
+        return repository.findBySensorId(sensorId);
+    }
+
 }

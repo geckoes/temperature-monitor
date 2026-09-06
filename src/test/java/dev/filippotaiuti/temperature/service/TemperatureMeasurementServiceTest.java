@@ -92,8 +92,34 @@ class TemperatureMeasurementServiceTest
         request.setSensorId("sensor-001");
         request.setMeasuredAt(measuredAt);
 
-        ArgumentCaptor<TemperatureMeasurement> captor = ArgumentCaptor.forClass(TemperatureMeasurement.class);
-
         service.save(request);
+    }
+
+    @Test
+    void testFindBySensorId()
+    {
+        // Arrange
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.now(),
+                "sensor-001");
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.5"),
+                TemperatureUnit.FAHRENHEIT,
+                OffsetDateTime.now(),
+                "sensor-001");
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        when(repository.findBySensorId("sensor-001")).thenReturn(measurements);
+
+        // Act
+        List<TemperatureMeasurement> result = service.findBySensorId("sensor-001");
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals(measurements, result);
+        verify(repository).findBySensorId("sensor-001");
     }
 }

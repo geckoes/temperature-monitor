@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
@@ -34,10 +35,13 @@ public class TemperatureMeasurementController
     }
 
     @GetMapping
-    public List<TemperatureMeasurementResponse> getMeasurements()
+    public List<TemperatureMeasurementResponse> getMeasurements(@RequestParam(required = false) String sensorId)
     {
-        return service.findAll()
-                .stream()
+        List<TemperatureMeasurement> measurements = sensorId == null
+                ? service.findAll()
+                : service.findBySensorId(sensorId);
+
+        return measurements.stream()
                 .map(TemperatureMeasurementResponse::from)
                 .toList();
     }

@@ -189,4 +189,40 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$[1].createdAt").doesNotExist());
         verify(service).findAll();
     }
+
+    @Test
+    void testGetMeasurementsBySensorId() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.now(),
+                "sensor-001");
+
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.7"),
+                TemperatureUnit.FAHRENHEIT,
+                OffsetDateTime.now(),
+                "sensor-001");
+
+        when(service.findBySensorId("sensor-001"))
+                .thenReturn(List.of(first, second));
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements").param("sensorId", "sensor-001"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].temperature").value(21.5))
+                .andExpect(jsonPath("$[0].unit").value("CELSIUS"))
+                .andExpect(jsonPath("$[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$[1].temperature").value(72.7))
+                .andExpect(jsonPath("$[1].unit").value("FAHRENHEIT"))
+                .andExpect(jsonPath("$[1].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$[1].createdAt").doesNotExist());
+
+        verify(service).findBySensorId("sensor-001");
+    }
 }
