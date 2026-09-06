@@ -1,18 +1,20 @@
 package dev.filippotaiuti.temperature.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import static org.mockito.Mockito.verify;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.ArgumentCaptor;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
@@ -20,7 +22,8 @@ import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.repository.TemperatureMeasurementRepository;
 
 @ExtendWith(MockitoExtension.class)
-class TemperatureMeasurementServiceTest {
+class TemperatureMeasurementServiceTest
+{
     @Mock
     private TemperatureMeasurementRepository repository;
 
@@ -28,18 +31,18 @@ class TemperatureMeasurementServiceTest {
     private TemperatureMeasurementService service;
 
     @Test
-    void testSaveTemperatureMeasurement() {
+    void testSaveTemperatureMeasurement()
+    {
         TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
-            BigDecimal.valueOf(25.5),
-            TemperatureUnit.CELSIUS,
-            "sensor-001"
-        );
-    
-        ArgumentCaptor<TemperatureMeasurement> captor =
-                ArgumentCaptor.forClass(TemperatureMeasurement.class);
+                BigDecimal.valueOf(25.5),
+                TemperatureUnit.CELSIUS,
+                "sensor-001",
+                OffsetDateTime.parse("2026-09-06T15:00:00Z"));
+
+        ArgumentCaptor<TemperatureMeasurement> captor = ArgumentCaptor.forClass(TemperatureMeasurement.class);
 
         service.save(request);
-        
+
         verify(repository).save(captor.capture());
 
         TemperatureMeasurement saved = captor.getValue();
@@ -50,5 +53,47 @@ class TemperatureMeasurementServiceTest {
         assertEquals(request.getSensorId(), saved.getSensorId());
         assertNotNull(saved.getMeasuredAt());
         assertNotNull(saved.getCreatedAt());
+    }
+
+    @Test
+    void testFindAllMeasurements()
+    {
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.now(),
+                "sensor-001");
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.5"),
+                TemperatureUnit.FAHRENHEIT,
+                OffsetDateTime.now(),
+                "sensor-002");
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        when(repository.findAll()).thenReturn(measurements);
+
+        List<TemperatureMeasurement> result = service.findAll();
+
+        assertEquals(2, result.size());
+        assertEquals(measurements, result);
+        verify(repository).findAll();
+    }
+
+    @Test
+    void testSavePreservesMeasuredAtFromRequest()
+    {
+        OffsetDateTime measuredAt = OffsetDateTime.parse("2026-09-06T15:00:00Z");
+
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest();
+
+        request.setTemperature(new BigDecimal("23.5"));
+        request.setUnit(TemperatureUnit.CELSIUS);
+        request.setSensorId("sensor-001");
+        request.setMeasuredAt(measuredAt);
+
+        ArgumentCaptor<TemperatureMeasurement> captor = ArgumentCaptor.forClass(TemperatureMeasurement.class);
+
+        service.save(request);
     }
 }
