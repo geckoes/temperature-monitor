@@ -1,5 +1,7 @@
 # Temperature Monitor
 
+![CI](https://github.com/geckoes/temperature-monitor/actions/workflows/ci.yml/badge.svg)
+
 A production-oriented backend service for collecting, storing, and querying temperature measurements produced by external sensors.
 
 The project is built with **Java and Spring Boot** and is being developed incrementally using a **TDD-oriented workflow**, with particular attention to REST API design, persistence, testability, time-series data, and separation of responsibilities.
