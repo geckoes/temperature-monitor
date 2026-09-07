@@ -122,4 +122,35 @@ class TemperatureMeasurementServiceTest
         assertEquals(measurements, result);
         verify(repository).findBySensorId("sensor-001");
     }
+
+    @Test
+    void testFindBySensorIdAndMeasuredAtBetween()
+    {
+        // Arrange
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"),
+                "sensor-001");
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.5"),
+                TemperatureUnit.FAHRENHEIT,
+                OffsetDateTime.parse("2026-09-07T11:00:00Z"),
+                "sensor-001");
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        when(repository.findBySensorIdAndMeasuredAtBetween("sensor-001", OffsetDateTime.parse("2026-09-07T10:00:00Z"),
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"))).thenReturn(measurements);
+
+        // Act
+        List<TemperatureMeasurement> result = service.findBySensorIdAndMeasuredAtBetween("sensor-001",
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals(measurements, result);
+        verify(repository).findBySensorIdAndMeasuredAtBetween("sensor-001",
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+    }
 }

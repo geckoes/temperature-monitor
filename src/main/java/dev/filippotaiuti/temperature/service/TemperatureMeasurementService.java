@@ -1,5 +1,6 @@
 package dev.filippotaiuti.temperature.service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -36,6 +37,20 @@ public class TemperatureMeasurementService
     public List<TemperatureMeasurement> findBySensorId(String sensorId)
     {
         return repository.findBySensorId(sensorId);
+    }
+
+    /**
+     * @param sensorId
+     * @param offsetDateTimeFrom
+     * @param offsetDateTimeTo
+     * @return
+     */
+    public List<TemperatureMeasurement> findBySensorIdAndMeasuredAtBetween(String sensorId,
+            OffsetDateTime offsetDateTimeFrom,
+            OffsetDateTime offsetDateTimeTo)
+    {
+        return repository.findBySensorIdAndMeasuredAtBetween(sensorId,
+                offsetDateTimeFrom, offsetDateTimeTo);
     }
 
 }

@@ -39,6 +39,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testCreateMeasurement() throws Exception
     {
+        // Arrange
         TemperatureMeasurement saved = new TemperatureMeasurement(
                 new BigDecimal("23.5"),
                 TemperatureUnit.CELSIUS,
@@ -48,6 +49,7 @@ class TemperatureMeasurementControllerTest
         when(service.save(any(TemperatureMeasurementRequest.class)))
                 .thenReturn(saved);
 
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -63,7 +65,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.unit").value("CELSIUS"))
                 .andExpect(jsonPath("$.sensorId").value("sensor-001"))
                 .andExpect(jsonPath("$.createdAt").doesNotExist());
-
+        // Verify
         verify(service).save(any(TemperatureMeasurementRequest.class));
     }
 
@@ -142,7 +144,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutMeasuredAt() throws Exception
     {
-
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -154,12 +156,14 @@ class TemperatureMeasurementControllerTest
                          }
                          """))
                 .andExpect(status().isBadRequest());
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testGetMeasurements() throws Exception
     {
+        // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
                 new BigDecimal("21.5"),
                 TemperatureUnit.CELSIUS,
@@ -175,6 +179,7 @@ class TemperatureMeasurementControllerTest
         when(service.findAll())
                 .thenReturn(List.of(first, second));
 
+        // Act + Assert
         mockMvc.perform(get("/api/measurements"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -187,6 +192,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$[1].unit").value("FAHRENHEIT"))
                 .andExpect(jsonPath("$[1].sensorId").value("sensor-002"))
                 .andExpect(jsonPath("$[1].createdAt").doesNotExist());
+        // Verify
         verify(service).findAll();
     }
 
@@ -222,7 +228,79 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$[1].unit").value("FAHRENHEIT"))
                 .andExpect(jsonPath("$[1].sensorId").value("sensor-001"))
                 .andExpect(jsonPath("$[1].createdAt").doesNotExist());
-
+        // Verify
         verify(service).findBySensorId("sensor-001");
+    }
+
+    @Test
+    void testGetMeasurementsBySensorIdAndTimeRange() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.now(),
+                "sensor-001");
+
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.7"),
+                TemperatureUnit.FAHRENHEIT,
+                OffsetDateTime.now(),
+                "sensor-001");
+
+        when(service.findBySensorIdAndMeasuredAtBetween(
+                "sensor-001",
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"),
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"))).thenReturn(List.of(first, second));
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sensorId", "sensor-001")
+                .param("from", "2026-09-07T10:00:00Z")
+                .param("to", "2026-09-07T12:00:00Z"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$[1].sensorId").value("sensor-001"));
+        // Verify
+        verify(service).findBySensorIdAndMeasuredAtBetween(
+                "sensor-001",
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"),
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+    }
+
+    @Test
+    void testRejectTimeRangeWithoutSensorId() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("from", "2026-09-07T10:00:00Z")
+                .param("to", "2026-09-07T12:00:00Z"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectIncompleteTimeRange() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("sensorId", "sensor-001")
+                .param("from", "2026-09-07T10:00:00Z"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectInvalidTimeRange() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("sensorId", "sensor-001")
+                .param("from", "2026-09-07T12:00:00Z")
+                .param("to", "2026-09-07T10:00:00Z"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
     }
 }
