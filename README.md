@@ -334,6 +334,14 @@ Run the complete test suite with:
 ./mvnw test
 ```
 
+## Local configuration
+
+Create your local configuration file from the provided template:
+
+```bash
+cp src/main/resources/application-local.example.properties \
+   src/main/resources/application-local.properties
+
 ---
 
 # Roadmap
