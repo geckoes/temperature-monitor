@@ -3,6 +3,8 @@ package dev.filippotaiuti.temperature.service;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
@@ -29,14 +31,14 @@ public class TemperatureMeasurementService
         return repository.save(measurement);
     }
 
-    public List<TemperatureMeasurement> findAll()
+    public Page<TemperatureMeasurement> findAll(Pageable pageable)
     {
-        return repository.findAll();
+        return repository.findAll(pageable);
     }
 
-    public List<TemperatureMeasurement> findBySensorId(String sensorId)
+    public Page<TemperatureMeasurement> findBySensorId(String sensorId, Pageable pageable)
     {
-        return repository.findBySensorId(sensorId);
+        return repository.findBySensorId(sensorId, pageable);
     }
 
     /**
@@ -45,12 +47,13 @@ public class TemperatureMeasurementService
      * @param offsetDateTimeTo
      * @return
      */
-    public List<TemperatureMeasurement> findBySensorIdAndMeasuredAtBetween(String sensorId,
+    public Page<TemperatureMeasurement> findBySensorIdAndMeasuredAtBetween(String sensorId,
             OffsetDateTime offsetDateTimeFrom,
-            OffsetDateTime offsetDateTimeTo)
+            OffsetDateTime offsetDateTimeTo,
+            Pageable pageable)
     {
         return repository.findBySensorIdAndMeasuredAtBetween(sensorId,
-                offsetDateTimeFrom, offsetDateTimeTo);
+                offsetDateTimeFrom, offsetDateTimeTo, pageable);
     }
 
 }

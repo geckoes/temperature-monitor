@@ -17,6 +17,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,8 +30,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
+import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 
+@Import (TemperatureMeasurementResponseMapper.class)
 @WebMvcTest(TemperatureMeasurementController.class)
 class TemperatureMeasurementControllerTest
 {
@@ -148,13 +156,13 @@ class TemperatureMeasurementControllerTest
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                         {
-                         "temperature": 23.5,
-                         "unit": "CELSIUS",
-                         "sensorId": "sensor-002",
-                         "measuredAt": null
-                         }
-                         """))
+                        {
+                        "temperature": 23.5,
+                        "unit": "CELSIUS",
+                        "sensorId": "sensor-002",
+                        "measuredAt": null
+                        }
+                        """))
                 .andExpect(status().isBadRequest());
         // Verify
         verifyNoInteractions(service);
@@ -176,24 +184,42 @@ class TemperatureMeasurementControllerTest
                 OffsetDateTime.now(),
                 "sensor-002");
 
-        when(service.findAll())
-                .thenReturn(List.of(first, second));
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                Sort.Order.desc("measuredAt"),
+                Sort.Order.asc("sensorId")
+            )
+        );
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        Page<TemperatureMeasurement> measurementsPage =
+        new PageImpl<>(
+                measurements,
+                expectedPageable,
+                measurements.size()
+        );
+        
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
 
         // Act + Assert
         mockMvc.perform(get("/api/measurements"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].temperature").value(21.5))
-                .andExpect(jsonPath("$[0].unit").value("CELSIUS"))
-                .andExpect(jsonPath("$[0].sensorId").value("sensor-001"))
-                .andExpect(jsonPath("$[0].createdAt").doesNotExist())
-                .andExpect(jsonPath("$[1].temperature").value(72.7))
-                .andExpect(jsonPath("$[1].unit").value("FAHRENHEIT"))
-                .andExpect(jsonPath("$[1].sensorId").value("sensor-002"))
-                .andExpect(jsonPath("$[1].createdAt").doesNotExist());
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].temperature").value(21.5))
+                .andExpect(jsonPath("$.content[0].unit").value("CELSIUS"))
+                .andExpect(jsonPath("$.content[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.content[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$.content[1].temperature").value(72.7))
+                .andExpect(jsonPath("$.content[1].unit").value("FAHRENHEIT"))
+                .andExpect(jsonPath("$.content[1].sensorId").value("sensor-002"))
+                .andExpect(jsonPath("$.content[1].createdAt").doesNotExist());
         // Verify
-        verify(service).findAll();
+        verify(service).findAll(expectedPageable);
     }
 
     @Test
@@ -212,24 +238,42 @@ class TemperatureMeasurementControllerTest
                 OffsetDateTime.now(),
                 "sensor-001");
 
-        when(service.findBySensorId("sensor-001"))
-                .thenReturn(List.of(first, second));
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                Sort.Order.desc("measuredAt"),
+                Sort.Order.asc("sensorId")
+            )
+        );
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        Page<TemperatureMeasurement> measurementsPage =
+        new PageImpl<>(
+                measurements,
+                expectedPageable,
+                measurements.size()
+        );
+        
+        when(service.findBySensorId("sensor-001", expectedPageable))
+                .thenReturn(measurementsPage);
 
         // Act + Assert
         mockMvc.perform(get("/api/measurements").param("sensorId", "sensor-001"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].temperature").value(21.5))
-                .andExpect(jsonPath("$[0].unit").value("CELSIUS"))
-                .andExpect(jsonPath("$[0].sensorId").value("sensor-001"))
-                .andExpect(jsonPath("$[0].createdAt").doesNotExist())
-                .andExpect(jsonPath("$[1].temperature").value(72.7))
-                .andExpect(jsonPath("$[1].unit").value("FAHRENHEIT"))
-                .andExpect(jsonPath("$[1].sensorId").value("sensor-001"))
-                .andExpect(jsonPath("$[1].createdAt").doesNotExist());
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].temperature").value(21.5))
+                .andExpect(jsonPath("$.content[0].unit").value("CELSIUS"))
+                .andExpect(jsonPath("$.content[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.content[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$.content[1].temperature").value(72.7))
+                .andExpect(jsonPath("$.content[1].unit").value("FAHRENHEIT"))
+                .andExpect(jsonPath("$.content[1].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.content[1].createdAt").doesNotExist());
         // Verify
-        verify(service).findBySensorId("sensor-001");
+        verify(service).findBySensorId("sensor-001", expectedPageable);
     }
 
     @Test
@@ -248,10 +292,29 @@ class TemperatureMeasurementControllerTest
                 OffsetDateTime.now(),
                 "sensor-001");
 
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                Sort.Order.desc("measuredAt"),
+                Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+        new PageImpl<>(
+                measurements,
+                expectedPageable,
+                measurements.size()
+        );
+        
         when(service.findBySensorIdAndMeasuredAtBetween(
                 "sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"),
-                OffsetDateTime.parse("2026-09-07T12:00:00Z"))).thenReturn(List.of(first, second));
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"),
+                expectedPageable)).thenReturn(measurementsPage);
 
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
@@ -260,14 +323,16 @@ class TemperatureMeasurementControllerTest
                 .param("to", "2026-09-07T12:00:00Z"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].sensorId").value("sensor-001"))
-                .andExpect(jsonPath("$[1].sensorId").value("sensor-001"));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.content[1].sensorId").value("sensor-001"));
         // Verify
         verify(service).findBySensorIdAndMeasuredAtBetween(
                 "sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"),
-                OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"),
+                expectedPageable
+            );
     }
 
     @Test
@@ -303,4 +368,69 @@ class TemperatureMeasurementControllerTest
 
         verifyNoInteractions(service);
     }
+
+    @Test
+    void testGetMeasurementsWithoutParams() throws Exception
+    {
+        // Arrange
+        OffsetDateTime measuredAt =
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00");
+        TemperatureMeasurement first = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                measuredAt,
+                "sensor-001");
+
+        TemperatureMeasurement second = new TemperatureMeasurement(
+                new BigDecimal("72.7"),
+                TemperatureUnit.FAHRENHEIT,
+                measuredAt,
+                "sensor-002");
+
+
+        List<TemperatureMeasurement> measurements = List.of(first, second);
+        
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                    Sort.Order.desc("measuredAt"),
+                    Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    measurements,
+                    expectedPageable,
+                    measurements.size()
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(50))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].temperature").value(21.5))
+                .andExpect(jsonPath("$.content[0].unit").value("CELSIUS"))
+                .andExpect(jsonPath("$.content[0].sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.content[0].createdAt").doesNotExist())
+                .andExpect(jsonPath("$.content[1].temperature").value(72.7))
+                .andExpect(jsonPath("$.content[1].unit").value("FAHRENHEIT"))
+                .andExpect(jsonPath("$.content[1].sensorId").value("sensor-002"))
+                .andExpect(jsonPath("$.content[1].createdAt").doesNotExist());
+
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
 }

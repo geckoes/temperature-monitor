@@ -15,6 +15,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
@@ -71,13 +76,31 @@ class TemperatureMeasurementServiceTest
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
-        when(repository.findAll()).thenReturn(measurements);
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                    Sort.Order.desc("measuredAt"),
+                    Sort.Order.asc("sensorId")
+            )
+        );
+        
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(measurements, expectedPageable, measurements.size());
 
-        List<TemperatureMeasurement> result = service.findAll();
+        when(repository.findAll(expectedPageable)).thenReturn(measurementsPage);
 
-        assertEquals(2, result.size());
-        assertEquals(measurements, result);
-        verify(repository).findAll();
+
+        Page<TemperatureMeasurement> result = service.findAll(expectedPageable);
+
+        assertEquals(measurementsPage.getContent(), result.getContent());
+        assertEquals(measurementsPage.getNumber(), result.getNumber());
+        assertEquals(measurementsPage.getSize(), result.getSize());
+        assertEquals(measurementsPage.getNumberOfElements(), result.getNumberOfElements());
+        assertEquals(measurementsPage.getTotalElements(), result.getTotalElements());
+        assertEquals(measurementsPage.getTotalPages(), result.getTotalPages());
+
+        verify(repository).findAll(expectedPageable);
     }
 
     @Test
@@ -112,15 +135,30 @@ class TemperatureMeasurementServiceTest
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
-        when(repository.findBySensorId("sensor-001")).thenReturn(measurements);
+        Pageable pageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")
+                )
+        );
+        Page<TemperatureMeasurement> measurementsPage =
+                new PageImpl<>(
+                        measurements,
+                        pageable,
+                        measurements.size()
+        );
+        when(repository.findBySensorId("sensor-001", pageable)).thenReturn(measurementsPage);
 
         // Act
-        List<TemperatureMeasurement> result = service.findBySensorId("sensor-001");
+        Page<TemperatureMeasurement> result = service.findBySensorId("sensor-001", pageable);
 
         // Assert
-        assertEquals(2, result.size());
-        assertEquals(measurements, result);
-        verify(repository).findBySensorId("sensor-001");
+        assertEquals(measurementsPage.getContent(), result.getContent());
+        assertEquals(measurementsPage.getTotalElements(), result.getTotalElements());
+
+        verify(repository).findBySensorId("sensor-001", pageable);
     }
 
     @Test
@@ -140,17 +178,32 @@ class TemperatureMeasurementServiceTest
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
+        Pageable pageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")
+                )
+        );
+        Page<TemperatureMeasurement> measurementsPage =
+                new PageImpl<>(
+                        measurements,
+                        pageable,
+                        measurements.size()
+        );
+
         when(repository.findBySensorIdAndMeasuredAtBetween("sensor-001", OffsetDateTime.parse("2026-09-07T10:00:00Z"),
-                OffsetDateTime.parse("2026-09-07T12:00:00Z"))).thenReturn(measurements);
+                OffsetDateTime.parse("2026-09-07T12:00:00Z"), pageable)).thenReturn(measurementsPage);
 
         // Act
-        List<TemperatureMeasurement> result = service.findBySensorIdAndMeasuredAtBetween("sensor-001",
-                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+        Page<TemperatureMeasurement> result = service.findBySensorIdAndMeasuredAtBetween("sensor-001",
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"), pageable);
 
         // Assert
-        assertEquals(2, result.size());
-        assertEquals(measurements, result);
+        assertEquals(measurementsPage.getSize(), result.getSize());
+        assertEquals(measurementsPage.getContent(), result.getContent());
         verify(repository).findBySensorIdAndMeasuredAtBetween("sensor-001",
-                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"));
+                OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"), pageable);
     }
 }

@@ -3,6 +3,10 @@ package dev.filippotaiuti.temperature.controller;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,9 +16,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import dev.filippotaiuti.temperature.dto.PagedResponse;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementResponse;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
+import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 import jakarta.validation.Valid;
 
@@ -25,9 +31,12 @@ public class TemperatureMeasurementController
 
     private final TemperatureMeasurementService service;
 
-    public TemperatureMeasurementController(TemperatureMeasurementService service)
+    private final TemperatureMeasurementResponseMapper mapper;
+
+    public TemperatureMeasurementController(TemperatureMeasurementService service, TemperatureMeasurementResponseMapper mapper)
     {
         this.service = service;
+        this.mapper = mapper;
     }
 
     @PostMapping
@@ -38,7 +47,7 @@ public class TemperatureMeasurementController
     }
 
     @GetMapping
-    public List<TemperatureMeasurementResponse> getMeasurements(
+    public PagedResponse<TemperatureMeasurementResponse> getMeasurements(
             @RequestParam(required = false) String sensorId,
             @RequestParam(required = false) OffsetDateTime from,
             @RequestParam(required = false) OffsetDateTime to)
@@ -62,18 +71,26 @@ public class TemperatureMeasurementController
                     HttpStatus.BAD_REQUEST,
                     "from must not be after to");
 
-        List<TemperatureMeasurement> measurements;
+
+        Pageable pageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                Sort.Order.desc("measuredAt"),
+                Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurements;
 
         if (sensorId != null && from != null && to != null)
-            measurements = service.findBySensorIdAndMeasuredAtBetween(sensorId, from, to);
+            measurements = service.findBySensorIdAndMeasuredAtBetween(sensorId, from, to, pageable);
         else if (sensorId != null)
-            measurements = service.findBySensorId(sensorId);
+            measurements = service.findBySensorId(sensorId, pageable);
         else
-            measurements = service.findAll();
+            measurements = service.findAll(pageable);
 
-        return measurements.stream()
-                .map(TemperatureMeasurementResponse::from)
-                .toList();
+        return mapper.toPagedResponse(measurements);
     }
 
 }
