@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,7 +29,8 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/measurements")
 public class TemperatureMeasurementController
 {
-
+    private static final int MAX_PAGE_SIZE = 1000;
+    
     private final TemperatureMeasurementService service;
 
     private final TemperatureMeasurementResponseMapper mapper;
@@ -50,7 +52,10 @@ public class TemperatureMeasurementController
     public PagedResponse<TemperatureMeasurementResponse> getMeasurements(
             @RequestParam(required = false) String sensorId,
             @RequestParam(required = false) OffsetDateTime from,
-            @RequestParam(required = false) OffsetDateTime to)
+            @RequestParam(required = false) OffsetDateTime to,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String sort)
     {
         boolean hasFrom = from != null;
         boolean hasTo = to != null;
@@ -70,14 +75,52 @@ public class TemperatureMeasurementController
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "from must not be after to");
+        if (page < 0)
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "page must be greater than or equal to 0");
+        if (size <= 0)
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "size must be greater than 0");
 
+        if (size > MAX_PAGE_SIZE)
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "size must be lower than " + MAX_PAGE_SIZE);
+
+        Sort.Order firstSort = Sort.Order.desc("measuredAt");
+        Sort.Order secondSort = Sort.Order.asc("sensorId");
+        if (sort != null) {
+            String[] sortParts = sort.split(",");
+            switch (sort) {
+                case "measuredAt,asc":
+                    firstSort = Sort.Order.asc(sortParts[0]);
+                    secondSort = Sort.Order.asc("sensorId");
+                    break;
+                case "measuredAt,desc":
+                    break;
+                case "sensorId,asc":
+                    firstSort = Sort.Order.asc(sortParts[0]);
+                    secondSort = Sort.Order.desc("measuredAt");
+                    break;
+                case "sensorId,desc":
+                    firstSort = Sort.Order.desc(sortParts[0]);
+                    secondSort = Sort.Order.desc("measuredAt");
+                    break;
+                default:
+                    throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "sort order is not written correctly");
+            }
+        }
 
         Pageable pageable = PageRequest.of(
-            0,
-            50,
+            page,
+            size,
             Sort.by(
-                Sort.Order.desc("measuredAt"),
-                Sort.Order.asc("sensorId")
+                firstSort,
+                secondSort
             )
         );
 

@@ -15,6 +15,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -37,6 +39,7 @@ import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 @WebMvcTest(TemperatureMeasurementController.class)
 class TemperatureMeasurementControllerTest
 {
+    private static final int MAX_PAGE_SIZE = 1000;
 
     @Autowired
     private MockMvc mockMvc;
@@ -433,4 +436,201 @@ class TemperatureMeasurementControllerTest
         verify(service).findAll(expectedPageable);
     }
 
+    @Test
+    void testGetMeasurementsWithPageAndSize() throws Exception {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+            2,
+            25,
+            Sort.by(
+                    Sort.Order.desc("measuredAt"),
+                    Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    List.of(measurement),
+                    expectedPageable,
+                    51
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("page", "2")
+                .param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(25))
+                .andExpect(jsonPath("$.totalElements").value(51))
+                .andExpect(jsonPath("$.totalPages").value(3));
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
+    @Test
+    void testRejectNegativePage() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("page", "-1"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @ParameterizedTest
+    @ValueSource (ints={0,-1})
+    void testRejectNonPositiveSize(int size) throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("size", String.valueOf(size)))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectSizeAboveMaximum() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("size", "1001"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testAcceptMaximumSize() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            MAX_PAGE_SIZE,
+            Sort.by(
+                    Sort.Order.desc("measuredAt"),
+                    Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    List.of(measurement),
+                    expectedPageable,
+                    1
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("size", String.valueOf(MAX_PAGE_SIZE)))
+                .andExpect(status().isOk());
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
+    @Test 
+    void testGetMeasurementsWithCustomSort() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                    Sort.Order.asc("measuredAt"),
+                    Sort.Order.asc("sensorId")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    List.of(measurement),
+                    expectedPageable,
+                    51
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "measuredAt,asc"))
+                .andExpect(status().isOk());
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
+    @Test
+    void testRejectSortWithoutDirection() throws Exception {
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "measuredAt"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test 
+    void testGetMeasurementsSortedBySensorId() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                    Sort.Order.asc("sensorId"),
+                    Sort.Order.desc("measuredAt")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    List.of(measurement),
+                    expectedPageable,
+                    51
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "sensorId,asc"))
+                .andExpect(status().isOk());
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
 }
