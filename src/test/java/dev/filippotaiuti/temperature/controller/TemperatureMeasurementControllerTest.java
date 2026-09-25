@@ -690,4 +690,50 @@ class TemperatureMeasurementControllerTest
         // Verify
         verify(service).findAll(expectedPageable);
     }
+
+    @Test
+    void testGetMeasurementsWithMultipleSortDirections() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.asc("measuredAt"),
+                        Sort.Order.desc("sensorId")));
+
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                51);
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "measuredAt,asc")
+                .param("sort", "sensorId,desc"))
+                .andExpect(status().isOk());
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
+    @Test
+    void testRejectSortByUnsupportedProperty() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "temperature,asc"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
 }
