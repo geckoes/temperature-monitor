@@ -1,13 +1,13 @@
 package dev.filippotaiuti.temperature.controller;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.domain.Sort.Order;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,14 +53,15 @@ public class TemperatureMeasurementController
             @RequestParam(required = false) String sensorId,
             @RequestParam(required = false) OffsetDateTime from,
             @RequestParam(required = false) OffsetDateTime to,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size,
-            @RequestParam(required = false) String sort)
+            @PageableDefault(page = 0, size = 50)
+            @SortDefault.SortDefaults({
+                @SortDefault(sort = "measuredAt", direction = Sort.Direction.DESC),
+                @SortDefault(sort = "sensorId", direction = Sort.Direction.ASC)
+            }) Pageable pageable)
     {
         boolean hasFrom = from != null;
         boolean hasTo = to != null;
         boolean hasTimeRange = hasFrom || hasTo;
-
         if (hasTimeRange && sensorId == null)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -75,54 +76,33 @@ public class TemperatureMeasurementController
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "from must not be after to");
-        if (page < 0)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "page must be greater than or equal to 0");
-        if (size <= 0)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "size must be greater than 0");
+        
+        Sort sort = pageable.getSort();
+        boolean hasSensorId = sort.stream()
+            .anyMatch(order -> order.getProperty().equals("sensorId"));
 
-        if (size > MAX_PAGE_SIZE)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "size must be lower than " + MAX_PAGE_SIZE);
-
-        Sort.Order firstSort = Sort.Order.desc("measuredAt");
-        Sort.Order secondSort = Sort.Order.asc("sensorId");
-        if (sort != null) {
-            String[] sortParts = sort.split(",");
-            switch (sort) {
-                case "measuredAt,asc":
-                    firstSort = Sort.Order.asc(sortParts[0]);
-                    secondSort = Sort.Order.asc("sensorId");
-                    break;
-                case "measuredAt,desc":
-                    break;
-                case "sensorId,asc":
-                    firstSort = Sort.Order.asc(sortParts[0]);
-                    secondSort = Sort.Order.desc("measuredAt");
-                    break;
-                case "sensorId,desc":
-                    firstSort = Sort.Order.desc(sortParts[0]);
-                    secondSort = Sort.Order.desc("measuredAt");
-                    break;
-                default:
-                    throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "sort order is not written correctly");
-            }
+        boolean hasMeasuredAt = sort.stream()
+            .anyMatch(order -> order.getProperty().equals("measuredAt"));
+        
+        if (!hasSensorId) {
+            sort = sort.and(Sort.by(Sort.Direction.ASC, "sensorId"));
         }
 
-        Pageable pageable = PageRequest.of(
-            page,
-            size,
-            Sort.by(
-                firstSort,
-                secondSort
-            )
+        if (!hasMeasuredAt) {
+            sort = sort.and(Sort.by(Sort.Direction.DESC, "measuredAt"));
+        }
+        pageable = PageRequest.of(
+            pageable.getPageNumber(),
+            pageable.getPageSize(),
+            sort
         );
+
+        sort.stream().forEach(order -> {
+            if (!order.getProperty().equals("measuredAt") && !order.getProperty().equals("sensorId"))
+                throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Sorting by " + order.getProperty() + " is not allowed");
+        });
 
         Page<TemperatureMeasurement> measurements;
 

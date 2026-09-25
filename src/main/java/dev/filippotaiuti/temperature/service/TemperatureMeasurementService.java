@@ -1,7 +1,6 @@
 package dev.filippotaiuti.temperature.service;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

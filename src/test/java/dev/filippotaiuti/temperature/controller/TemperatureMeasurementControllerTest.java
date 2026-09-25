@@ -1,15 +1,5 @@
 package dev.filippotaiuti.temperature.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -17,6 +7,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -28,6 +22,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
@@ -628,6 +627,45 @@ class TemperatureMeasurementControllerTest
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sort", "sensorId,asc"))
+                .andExpect(status().isOk());
+
+        // Verify
+        verify(service).findAll(expectedPageable);
+    }
+
+    @Test 
+    void testGetMeasurementsDoubleSorting() throws Exception
+    {
+        // Arrange
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+                new BigDecimal("21.5"),
+                TemperatureUnit.CELSIUS,
+                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+                "sensor-001");
+
+        Pageable expectedPageable = PageRequest.of(
+            0,
+            50,
+            Sort.by(
+                    Sort.Order.asc("sensorId"),
+                    Sort.Order.desc("measuredAt")
+            )
+        );
+
+        Page<TemperatureMeasurement> measurementsPage =
+            new PageImpl<>(
+                    List.of(measurement),
+                    expectedPageable,
+                    51
+        );
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("sort", "sensorId,asc")
+                .param("sort", "measuredAt,desc"))
                 .andExpect(status().isOk());
 
         // Verify
