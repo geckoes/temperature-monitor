@@ -30,12 +30,13 @@ import jakarta.validation.Valid;
 public class TemperatureMeasurementController
 {
     private static final int MAX_PAGE_SIZE = 1000;
-    
+
     private final TemperatureMeasurementService service;
 
     private final TemperatureMeasurementResponseMapper mapper;
 
-    public TemperatureMeasurementController(TemperatureMeasurementService service, TemperatureMeasurementResponseMapper mapper)
+    public TemperatureMeasurementController(TemperatureMeasurementService service,
+            TemperatureMeasurementResponseMapper mapper)
     {
         this.service = service;
         this.mapper = mapper;
@@ -53,56 +54,68 @@ public class TemperatureMeasurementController
             @RequestParam(required = false) String sensorId,
             @RequestParam(required = false) OffsetDateTime from,
             @RequestParam(required = false) OffsetDateTime to,
-            @PageableDefault(page = 0, size = 50)
-            @SortDefault.SortDefaults({
-                @SortDefault(sort = "measuredAt", direction = Sort.Direction.DESC),
-                @SortDefault(sort = "sensorId", direction = Sort.Direction.ASC)
+            @PageableDefault(page = 0, size = 50) @SortDefault.SortDefaults({
+                    @SortDefault(sort = "measuredAt", direction = Sort.Direction.DESC),
+                    @SortDefault(sort = "sensorId", direction = Sort.Direction.ASC)
             }) Pageable pageable)
     {
         boolean hasFrom = from != null;
         boolean hasTo = to != null;
         boolean hasTimeRange = hasFrom || hasTo;
+
+        Sort sort = pageable.getSort();
+
+        // 1. validate allowed properties
         if (hasTimeRange && sensorId == null)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "sensorId is required when isung a time range");
+                    "sensorId is required when using a time range");
 
         if (hasFrom != hasTo)
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "from and to must be provided together");
 
-        if (from != null && from.isAfter(to))
+        if (hasFrom && hasTo && from.isAfter(to))
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "from must not be after to");
-        
-        Sort sort = pageable.getSort();
+
+        if (pageable.getPageSize() > MAX_PAGE_SIZE)
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "size must not be greater than " + MAX_PAGE_SIZE);
+
+        sort.forEach(order ->
+        {
+            if (!order.getProperty().equals("measuredAt") && !order.getProperty().equals("sensorId"))
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Sorting by " + order.getProperty() + " is not allowed");
+        });
+
+        // 2. determine which sort properties are already present
         boolean hasSensorId = sort.stream()
-            .anyMatch(order -> order.getProperty().equals("sensorId"));
+                .anyMatch(order -> order.getProperty().equals("sensorId"));
 
         boolean hasMeasuredAt = sort.stream()
-            .anyMatch(order -> order.getProperty().equals("measuredAt"));
-        
-        if (!hasSensorId) {
+                .anyMatch(order -> order.getProperty().equals("measuredAt"));
+
+        // 3. append deterministic fallback sorting
+        if (!hasSensorId)
+        {
             sort = sort.and(Sort.by(Sort.Direction.ASC, "sensorId"));
         }
 
-        if (!hasMeasuredAt) {
+        if (!hasMeasuredAt)
+        {
             sort = sort.and(Sort.by(Sort.Direction.DESC, "measuredAt"));
         }
+        // 4. rebuild pageable
         pageable = PageRequest.of(
-            pageable.getPageNumber(),
-            pageable.getPageSize(),
-            sort
-        );
-
-        sort.stream().forEach(order -> {
-            if (!order.getProperty().equals("measuredAt") && !order.getProperty().equals("sensorId"))
-                throw new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "Sorting by " + order.getProperty() + " is not allowed");
-        });
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                sort);
 
         Page<TemperatureMeasurement> measurements;
 

@@ -1,5 +1,15 @@
 package dev.filippotaiuti.temperature.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -7,10 +17,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -22,11 +28,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
@@ -34,7 +35,7 @@ import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 
-@Import (TemperatureMeasurementResponseMapper.class)
+@Import(TemperatureMeasurementResponseMapper.class)
 @WebMvcTest(TemperatureMeasurementController.class)
 class TemperatureMeasurementControllerTest
 {
@@ -82,7 +83,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutTemperature() throws Exception
     {
-
+        // Arrange Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -94,13 +95,14 @@ class TemperatureMeasurementControllerTest
                          }
                          """))
                 .andExpect(status().isBadRequest());
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectMeasurementWithoutUnit() throws Exception
     {
-
+        // Arrange Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -112,13 +114,14 @@ class TemperatureMeasurementControllerTest
                          }
                          """))
                 .andExpect(status().isBadRequest());
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectMeasurementWithoutSensorId() throws Exception
     {
-
+        // Arrange Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -130,13 +133,14 @@ class TemperatureMeasurementControllerTest
                          }
                          """))
                 .andExpect(status().isBadRequest());
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectMeasurementWithInvalidUnit() throws Exception
     {
-
+        // Arrange Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -148,23 +152,24 @@ class TemperatureMeasurementControllerTest
                          }
                          """))
                 .andExpect(status().isBadRequest());
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectMeasurementWithoutMeasuredAt() throws Exception
     {
-        // Act + Assert
+        // Arrange Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {
-                        "temperature": 23.5,
-                        "unit": "CELSIUS",
-                        "sensorId": "sensor-002",
-                        "measuredAt": null
-                        }
-                        """))
+                         {
+                         "temperature": 23.5,
+                         "unit": "CELSIUS",
+                         "sensorId": "sensor-002",
+                         "measuredAt": null
+                         }
+                         """))
                 .andExpect(status().isBadRequest());
         // Verify
         verifyNoInteractions(service);
@@ -187,23 +192,19 @@ class TemperatureMeasurementControllerTest
                 "sensor-002");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                Sort.Order.desc("measuredAt"),
-                Sort.Order.asc("sensorId")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
-        Page<TemperatureMeasurement> measurementsPage =
-        new PageImpl<>(
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
                 measurements,
                 expectedPageable,
-                measurements.size()
-        );
-        
+                measurements.size());
+
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
 
@@ -241,23 +242,19 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                Sort.Order.desc("measuredAt"),
-                Sort.Order.asc("sensorId")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
-        Page<TemperatureMeasurement> measurementsPage =
-        new PageImpl<>(
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
                 measurements,
                 expectedPageable,
-                measurements.size()
-        );
-        
+                measurements.size());
+
         when(service.findBySensorId("sensor-001", expectedPageable))
                 .thenReturn(measurementsPage);
 
@@ -297,21 +294,17 @@ class TemperatureMeasurementControllerTest
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                Sort.Order.desc("measuredAt"),
-                Sort.Order.asc("sensorId")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-        new PageImpl<>(
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
                 measurements,
                 expectedPageable,
-                measurements.size()
-        );
-        
+                measurements.size());
+
         when(service.findBySensorIdAndMeasuredAtBetween(
                 "sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"),
@@ -333,41 +326,46 @@ class TemperatureMeasurementControllerTest
                 "sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"),
                 OffsetDateTime.parse("2026-09-07T12:00:00Z"),
-                expectedPageable
-            );
+                expectedPageable);
     }
 
     @Test
     void testRejectTimeRangeWithoutSensorId() throws Exception
     {
+        // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("from", "2026-09-07T10:00:00Z")
                 .param("to", "2026-09-07T12:00:00Z"))
                 .andExpect(status().isBadRequest());
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectIncompleteTimeRange() throws Exception
     {
+        // Arrange
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T10:00:00Z"))
                 .andExpect(status().isBadRequest());
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectInvalidTimeRange() throws Exception
     {
+        // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T12:00:00Z")
                 .param("to", "2026-09-07T10:00:00Z"))
                 .andExpect(status().isBadRequest());
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -375,8 +373,7 @@ class TemperatureMeasurementControllerTest
     void testGetMeasurementsWithoutParams() throws Exception
     {
         // Arrange
-        OffsetDateTime measuredAt =
-            OffsetDateTime.parse("2026-09-22T10:00:00+02:00");
+        OffsetDateTime measuredAt = OffsetDateTime.parse("2026-09-22T10:00:00+02:00");
         TemperatureMeasurement first = new TemperatureMeasurement(
                 new BigDecimal("21.5"),
                 TemperatureUnit.CELSIUS,
@@ -389,24 +386,19 @@ class TemperatureMeasurementControllerTest
                 measuredAt,
                 "sensor-002");
 
-
         List<TemperatureMeasurement> measurements = List.of(first, second);
-        
-        Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                    Sort.Order.desc("measuredAt"),
-                    Sort.Order.asc("sensorId")
-            )
-        );
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    measurements,
-                    expectedPageable,
-                    measurements.size()
-        );
+        Pageable expectedPageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
+
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                measurements,
+                expectedPageable,
+                measurements.size());
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
@@ -430,13 +422,13 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.content[1].sensorId").value("sensor-002"))
                 .andExpect(jsonPath("$.content[1].createdAt").doesNotExist());
 
-
         // Verify
         verify(service).findAll(expectedPageable);
     }
 
     @Test
-    void testGetMeasurementsWithPageAndSize() throws Exception {
+    void testGetMeasurementsWithPageAndSize() throws Exception
+    {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
                 new BigDecimal("21.5"),
@@ -445,20 +437,16 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            2,
-            25,
-            Sort.by(
-                    Sort.Order.desc("measuredAt"),
-                    Sort.Order.asc("sensorId")
-            )
-        );
+                2,
+                25,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    List.of(measurement),
-                    expectedPageable,
-                    51
-        );
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                51);
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
@@ -480,29 +468,60 @@ class TemperatureMeasurementControllerTest
     }
 
     @Test
-    void testRejectNegativePage() throws Exception
+    void testNegativePageFallsBackToDefaultPage() throws Exception
     {
+        // Arrange
+        Pageable expectedPageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
+
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("page", "-1"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
 
-        verifyNoInteractions(service);
+        // Verify
+        verify(service).findAll(expectedPageable);
     }
 
     @ParameterizedTest
-    @ValueSource (ints={0,-1})
-    void testRejectNonPositiveSize(int size) throws Exception
+    @ValueSource(ints = { 0, -1 })
+    void testNonPositiveSizeFallsBackToDefaultSize(int size) throws Exception
     {
+        // Arrange
+        Pageable expectedPageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
+
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("size", String.valueOf(size)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
 
-        verifyNoInteractions(service);
+        // Verify
+        verify(service).findAll(expectedPageable);
     }
 
     @Test
     void testRejectSizeAboveMaximum() throws Exception
     {
+        // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("size", "1001"))
                 .andExpect(status().isBadRequest());
@@ -521,20 +540,16 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            MAX_PAGE_SIZE,
-            Sort.by(
-                    Sort.Order.desc("measuredAt"),
-                    Sort.Order.asc("sensorId")
-            )
-        );
+                0,
+                MAX_PAGE_SIZE,
+                Sort.by(
+                        Sort.Order.desc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    List.of(measurement),
-                    expectedPageable,
-                    1
-        );
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                1);
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
@@ -548,7 +563,7 @@ class TemperatureMeasurementControllerTest
         verify(service).findAll(expectedPageable);
     }
 
-    @Test 
+    @Test
     void testGetMeasurementsWithCustomSort() throws Exception
     {
         // Arrange
@@ -559,20 +574,16 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                    Sort.Order.asc("measuredAt"),
-                    Sort.Order.asc("sensorId")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.asc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    List.of(measurement),
-                    expectedPageable,
-                    51
-        );
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                51);
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
@@ -587,15 +598,31 @@ class TemperatureMeasurementControllerTest
     }
 
     @Test
-    void testRejectSortWithoutDirection() throws Exception {
+    void testSortWithoutDirectionUsesAscendingDefault() throws Exception
+    {
+        // Arrange
+        Pageable expectedPageable = PageRequest.of(
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.asc("measuredAt"),
+                        Sort.Order.asc("sensorId")));
+
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
+
+        when(service.findAll(expectedPageable))
+                .thenReturn(measurementsPage);
+
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sort", "measuredAt"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
 
-        verifyNoInteractions(service);
+        // Verify
+        verify(service).findAll(expectedPageable);
     }
 
-    @Test 
+    @Test
     void testGetMeasurementsSortedBySensorId() throws Exception
     {
         // Arrange
@@ -606,20 +633,16 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                    Sort.Order.asc("sensorId"),
-                    Sort.Order.desc("measuredAt")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.asc("sensorId"),
+                        Sort.Order.desc("measuredAt")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    List.of(measurement),
-                    expectedPageable,
-                    51
-        );
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                51);
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
@@ -633,7 +656,7 @@ class TemperatureMeasurementControllerTest
         verify(service).findAll(expectedPageable);
     }
 
-    @Test 
+    @Test
     void testGetMeasurementsDoubleSorting() throws Exception
     {
         // Arrange
@@ -644,20 +667,16 @@ class TemperatureMeasurementControllerTest
                 "sensor-001");
 
         Pageable expectedPageable = PageRequest.of(
-            0,
-            50,
-            Sort.by(
-                    Sort.Order.asc("sensorId"),
-                    Sort.Order.desc("measuredAt")
-            )
-        );
+                0,
+                50,
+                Sort.by(
+                        Sort.Order.asc("sensorId"),
+                        Sort.Order.desc("measuredAt")));
 
-        Page<TemperatureMeasurement> measurementsPage =
-            new PageImpl<>(
-                    List.of(measurement),
-                    expectedPageable,
-                    51
-        );
+        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(
+                List.of(measurement),
+                expectedPageable,
+                51);
 
         when(service.findAll(expectedPageable))
                 .thenReturn(measurementsPage);
