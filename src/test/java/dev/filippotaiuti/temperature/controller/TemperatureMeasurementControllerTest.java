@@ -336,20 +336,46 @@ class TemperatureMeasurementControllerTest
         mockMvc.perform(get("/api/measurements")
                 .param("from", "2026-09-07T10:00:00Z")
                 .param("to", "2026-09-07T12:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("SENSOR_ID_REQUIRED"))
+                .andExpect(jsonPath("$.detail").value("sensorId is required when using a time range"));
+
 
         // Verify
         verifyNoInteractions(service);
     }
 
     @Test
-    void testRejectIncompleteTimeRange() throws Exception
+    void testRejectIncompleteTimeRangeWithoutTo() throws Exception
     {
         // Arrange
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T10:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INCOMPLETE_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from and to must be provided together"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectIncompleteTimeRangeWithoutFrom() throws Exception
+    {
+        // Arrange
+        mockMvc.perform(get("/api/measurements")
+                .param("sensorId", "sensor-001")
+                .param("to", "2026-09-07T10:00:00Z"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INCOMPLETE_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from and to must be provided together"));
 
         // Verify
         verifyNoInteractions(service);
@@ -363,7 +389,11 @@ class TemperatureMeasurementControllerTest
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T12:00:00Z")
                 .param("to", "2026-09-07T10:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from must not be after to"));
 
         // Verify
         verifyNoInteractions(service);
@@ -521,10 +551,15 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectSizeAboveMaximum() throws Exception
     {
+        int size = MAX_PAGE_SIZE + 1;
         // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
-                .param("size", "1001"))
-                .andExpect(status().isBadRequest());
+                .param("size", String.valueOf(size)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("PAGE_SIZE_TOO_LARGE"))
+                .andExpect(jsonPath("$.detail").value("size must not be greater than " + MAX_PAGE_SIZE));;
 
         verifyNoInteractions(service);
     }
@@ -732,7 +767,11 @@ class TemperatureMeasurementControllerTest
         // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sort", "temperature,asc"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_SORT_PROPERTY"))
+                .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));;
 
         verifyNoInteractions(service);
     }

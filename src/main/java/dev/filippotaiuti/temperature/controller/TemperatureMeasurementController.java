@@ -21,6 +21,11 @@ import dev.filippotaiuti.temperature.dto.PagedResponse;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementResponse;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
+import dev.filippotaiuti.temperature.exception.IncompleteTimeRangeException;
+import dev.filippotaiuti.temperature.exception.InvalidTimeRangeException;
+import dev.filippotaiuti.temperature.exception.PageSizeTooLargeException;
+import dev.filippotaiuti.temperature.exception.SensorIdRequiredException;
+import dev.filippotaiuti.temperature.exception.UnsupportedSortPropertyException;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
 import jakarta.validation.Valid;
@@ -67,31 +72,21 @@ public class TemperatureMeasurementController
 
         // 1. validate allowed properties
         if (hasTimeRange && sensorId == null)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "sensorId is required when using a time range");
+            throw new SensorIdRequiredException();
 
         if (hasFrom != hasTo)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "from and to must be provided together");
+            throw new IncompleteTimeRangeException();
 
         if (hasFrom && hasTo && from.isAfter(to))
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "from must not be after to");
+            throw new InvalidTimeRangeException();
 
         if (pageable.getPageSize() > MAX_PAGE_SIZE)
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "size must not be greater than " + MAX_PAGE_SIZE);
+            throw new PageSizeTooLargeException(MAX_PAGE_SIZE);
 
         sort.forEach(order ->
         {
             if (!order.getProperty().equals("measuredAt") && !order.getProperty().equals("sensorId"))
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Sorting by " + order.getProperty() + " is not allowed");
+                throw new UnsupportedSortPropertyException(order.getProperty());
         });
 
         // 2. determine which sort properties are already present
