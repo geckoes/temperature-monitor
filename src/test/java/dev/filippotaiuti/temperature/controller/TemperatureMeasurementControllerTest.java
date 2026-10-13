@@ -8,6 +8,8 @@ import static org.hamcrest.Matchers.contains;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -34,6 +36,8 @@ import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
+
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 
 @Import(TemperatureMeasurementResponseMapper.class)
 @WebMvcTest(TemperatureMeasurementController.class)
@@ -866,6 +870,37 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_SORT_PROPERTY"))
                 .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectGetMeasurementsWithInvalidFromParameter() throws Exception 
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("from", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'from'"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testGetMeasurementsWithInvalidPageParameter() throws Exception
+    {
+        when(service.findAll(any(Pageable.class))).thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/measurements")
+                .param("page", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
+//                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
 
         verifyNoInteractions(service);
     }
