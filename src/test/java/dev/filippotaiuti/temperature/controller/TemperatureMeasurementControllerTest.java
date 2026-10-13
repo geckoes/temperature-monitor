@@ -1,22 +1,17 @@
 package dev.filippotaiuti.temperature.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -28,6 +23,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
@@ -94,7 +94,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("temperature"))
+                .andExpect(jsonPath("$.errors[0].message").value("temperature is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -113,7 +119,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("unit"))
+                .andExpect(jsonPath("$.errors[0].message").value("unit is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -132,7 +144,37 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
+                .andExpect(jsonPath("$.errors[0].message").value("sensorId must not be blank"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementWithoutTemperatureAndSensorId() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "unit": "CELSIUS",
+                         "measuredAt": "2026-09-06T15:00:00Z"
+                         }
+                         """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors.length()").value(2))
+                .andExpect(jsonPath("$.errors[?(@.field == 'temperature')].message", contains("temperature is required")))
+                .andExpect(jsonPath("$.errors[?(@.field == 'sensorId')].message", contains("sensorId must not be blank")));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -146,12 +188,58 @@ class TemperatureMeasurementControllerTest
                 .content("""
                          {
                          "temperature": 23.5,
-                         "unit": "CELSIUSS",
+                         "unit": "KELVIN",
                          "sensorId": "sensor-002",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectIncompleteBody() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"temperature\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementInvalidTemperature() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "temperature": "caldo",
+                         "unit": "FAHRENHEIT",
+                         "sensorId": "sensor-001",
+                         "measuredAt": "2026-09-06T15:00:00Z"
+                         }
+                         """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -170,7 +258,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": null
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("measuredAt"))
+                .andExpect(jsonPath("$.errors[0].message").value("measuredAt is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -559,7 +653,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("PAGE_SIZE_TOO_LARGE"))
-                .andExpect(jsonPath("$.detail").value("size must not be greater than " + MAX_PAGE_SIZE));;
+                .andExpect(jsonPath("$.detail").value("size must not be greater than " + MAX_PAGE_SIZE));
 
         verifyNoInteractions(service);
     }
@@ -771,7 +865,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_SORT_PROPERTY"))
-                .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));;
+                .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));
 
         verifyNoInteractions(service);
     }

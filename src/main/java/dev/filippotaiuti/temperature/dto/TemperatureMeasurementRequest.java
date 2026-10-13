@@ -9,13 +9,13 @@ import jakarta.validation.constraints.NotNull;
 
 public class TemperatureMeasurementRequest
 {
-    @NotNull
+    @NotNull(message = "temperature is required")
     private BigDecimal temperature;
-    @NotNull
+    @NotNull(message = "unit is required")
     private TemperatureUnit unit;
-    @NotBlank
+    @NotBlank(message = "sensorId must not be blank")
     private String sensorId;
-    @NotNull
+    @NotNull(message = "measuredAt is required")
     private OffsetDateTime measuredAt;
 
     public TemperatureMeasurementRequest()
