@@ -8,8 +8,6 @@ import static org.hamcrest.Matchers.contains;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentCaptor;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -36,10 +34,12 @@ import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
+import dev.filippotaiuti.temperature.validation.PaginationParameterValidator;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-
-@Import(TemperatureMeasurementResponseMapper.class)
+@Import({
+    TemperatureMeasurementResponseMapper.class,
+    PaginationParameterValidator.class
+})
 @WebMvcTest(TemperatureMeasurementController.class)
 class TemperatureMeasurementControllerTest
 {
@@ -596,54 +596,36 @@ class TemperatureMeasurementControllerTest
     }
 
     @Test
-    void testNegativePageFallsBackToDefaultPage() throws Exception
+    void testNegativePage() throws Exception
     {
-        // Arrange
-        Pageable expectedPageable = PageRequest.of(
-                0,
-                50,
-                Sort.by(
-                        Sort.Order.desc("measuredAt"),
-                        Sort.Order.asc("sensorId")));
-
-        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
-
-        when(service.findAll(expectedPageable))
-                .thenReturn(measurementsPage);
-
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("page", "-1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
 
         // Verify
-        verify(service).findAll(expectedPageable);
+        verifyNoInteractions(service);
     }
 
     @ParameterizedTest
     @ValueSource(ints = { 0, -1 })
-    void testNonPositiveSizeFallsBackToDefaultSize(int size) throws Exception
+    void testRejectNonPositiveSize(int size) throws Exception
     {
-        // Arrange
-        Pageable expectedPageable = PageRequest.of(
-                0,
-                50,
-                Sort.by(
-                        Sort.Order.desc("measuredAt"),
-                        Sort.Order.asc("sensorId")));
-
-        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
-
-        when(service.findAll(expectedPageable))
-                .thenReturn(measurementsPage);
-
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("size", String.valueOf(size)))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'size'"));
 
         // Verify
-        verify(service).findAll(expectedPageable);
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -892,16 +874,31 @@ class TemperatureMeasurementControllerTest
     @Test
     void testGetMeasurementsWithInvalidPageParameter() throws Exception
     {
-        when(service.findAll(any(Pageable.class))).thenReturn(Page.empty());
-
         mockMvc.perform(get("/api/measurements")
                 .param("page", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
-//                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
 
         verifyNoInteractions(service);
     }
+
+    @Test
+    void testGetMeasurementsWithInvalidSizeParameter() throws Exception
+    {
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("size", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'size'"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
 }

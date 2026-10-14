@@ -21,28 +21,29 @@ import dev.filippotaiuti.temperature.dto.TemperatureMeasurementResponse;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.exception.IncompleteTimeRangeException;
 import dev.filippotaiuti.temperature.exception.InvalidTimeRangeException;
-import dev.filippotaiuti.temperature.exception.PageSizeTooLargeException;
 import dev.filippotaiuti.temperature.exception.SensorIdRequiredException;
 import dev.filippotaiuti.temperature.exception.UnsupportedSortPropertyException;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
+import dev.filippotaiuti.temperature.validation.PaginationParameterValidator;
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/measurements")
 public class TemperatureMeasurementController
 {
-    private static final int MAX_PAGE_SIZE = 1000;
-
     private final TemperatureMeasurementService service;
 
     private final TemperatureMeasurementResponseMapper mapper;
 
+    private final PaginationParameterValidator paginationParameterValidator;
+
     public TemperatureMeasurementController(TemperatureMeasurementService service,
-            TemperatureMeasurementResponseMapper mapper)
+            TemperatureMeasurementResponseMapper mapper, PaginationParameterValidator paginationParameterValidator)
     {
         this.service = service;
         this.mapper = mapper;
+        this.paginationParameterValidator = paginationParameterValidator;
     }
 
     @PostMapping
@@ -57,11 +58,15 @@ public class TemperatureMeasurementController
             @RequestParam(required = false) String sensorId,
             @RequestParam(required = false) OffsetDateTime from,
             @RequestParam(required = false) OffsetDateTime to,
+            @RequestParam(required = false, name = "page") String rawPage,
+            @RequestParam(required = false, name = "size") String rawSize,
             @PageableDefault(page = 0, size = 50) @SortDefault.SortDefaults({
                     @SortDefault(sort = "measuredAt", direction = Sort.Direction.DESC),
                     @SortDefault(sort = "sensorId", direction = Sort.Direction.ASC)
             }) Pageable pageable)
     {
+        paginationParameterValidator.validate(rawPage, rawSize);
+
         boolean hasFrom = from != null;
         boolean hasTo = to != null;
         boolean hasTimeRange = hasFrom || hasTo;
@@ -77,9 +82,6 @@ public class TemperatureMeasurementController
 
         if (hasFrom && hasTo && from.isAfter(to))
             throw new InvalidTimeRangeException();
-
-        if (pageable.getPageSize() > MAX_PAGE_SIZE)
-            throw new PageSizeTooLargeException(MAX_PAGE_SIZE);
 
         sort.forEach(order ->
         {

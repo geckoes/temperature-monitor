@@ -1,7 +1,5 @@
 package dev.filippotaiuti.temperature.exception;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -16,6 +14,11 @@ import dev.filippotaiuti.temperature.dto.ValidationError;
 
 @RestControllerAdvice 
 public class RestExceptionHandler {
+
+    @ExceptionHandler(InvalidPaginationParameterException.class)
+    public ProblemDetail handleInvalidPaginationParameter(InvalidPaginationParameterException ex) {
+        return buildBadRequest(ex,  "INVALID_PARAMETER");
+    }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex) {
