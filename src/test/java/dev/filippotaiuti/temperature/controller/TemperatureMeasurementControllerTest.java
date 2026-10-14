@@ -1,22 +1,17 @@
 package dev.filippotaiuti.temperature.controller;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -28,14 +23,23 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
 import dev.filippotaiuti.temperature.service.TemperatureMeasurementService;
+import dev.filippotaiuti.temperature.validation.PaginationParameterValidator;
 
-@Import(TemperatureMeasurementResponseMapper.class)
+@Import({
+    TemperatureMeasurementResponseMapper.class,
+    PaginationParameterValidator.class
+})
 @WebMvcTest(TemperatureMeasurementController.class)
 class TemperatureMeasurementControllerTest
 {
@@ -94,7 +98,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("temperature"))
+                .andExpect(jsonPath("$.errors[0].message").value("temperature is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -113,7 +123,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("unit"))
+                .andExpect(jsonPath("$.errors[0].message").value("unit is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -132,7 +148,37 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
+                .andExpect(jsonPath("$.errors[0].message").value("sensorId must not be blank"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementWithoutTemperatureAndSensorId() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "unit": "CELSIUS",
+                         "measuredAt": "2026-09-06T15:00:00Z"
+                         }
+                         """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors.length()").value(2))
+                .andExpect(jsonPath("$.errors[?(@.field == 'temperature')].message", contains("temperature is required")))
+                .andExpect(jsonPath("$.errors[?(@.field == 'sensorId')].message", contains("sensorId must not be blank")));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -146,12 +192,58 @@ class TemperatureMeasurementControllerTest
                 .content("""
                          {
                          "temperature": 23.5,
-                         "unit": "CELSIUSS",
+                         "unit": "KELVIN",
                          "sensorId": "sensor-002",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectIncompleteBody() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"temperature\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementInvalidTemperature() throws Exception
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "temperature": "caldo",
+                         "unit": "FAHRENHEIT",
+                         "sensorId": "sensor-001",
+                         "measuredAt": "2026-09-06T15:00:00Z"
+                         }
+                         """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST_BODY"))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed or contains invalid values"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -170,7 +262,13 @@ class TemperatureMeasurementControllerTest
                          "measuredAt": null
                          }
                          """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("measuredAt"))
+                .andExpect(jsonPath("$.errors[0].message").value("measuredAt is required"));
+
         // Verify
         verifyNoInteractions(service);
     }
@@ -336,20 +434,46 @@ class TemperatureMeasurementControllerTest
         mockMvc.perform(get("/api/measurements")
                 .param("from", "2026-09-07T10:00:00Z")
                 .param("to", "2026-09-07T12:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("SENSOR_ID_REQUIRED"))
+                .andExpect(jsonPath("$.detail").value("sensorId is required when using a time range"));
+
 
         // Verify
         verifyNoInteractions(service);
     }
 
     @Test
-    void testRejectIncompleteTimeRange() throws Exception
+    void testRejectIncompleteTimeRangeWithoutTo() throws Exception
     {
         // Arrange
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T10:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INCOMPLETE_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from and to must be provided together"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectIncompleteTimeRangeWithoutFrom() throws Exception
+    {
+        // Arrange
+        mockMvc.perform(get("/api/measurements")
+                .param("sensorId", "sensor-001")
+                .param("to", "2026-09-07T10:00:00Z"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INCOMPLETE_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from and to must be provided together"));
 
         // Verify
         verifyNoInteractions(service);
@@ -363,7 +487,11 @@ class TemperatureMeasurementControllerTest
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T12:00:00Z")
                 .param("to", "2026-09-07T10:00:00Z"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_TIME_RANGE"))
+                .andExpect(jsonPath("$.detail").value("from must not be after to"));
 
         // Verify
         verifyNoInteractions(service);
@@ -468,63 +596,50 @@ class TemperatureMeasurementControllerTest
     }
 
     @Test
-    void testNegativePageFallsBackToDefaultPage() throws Exception
+    void testNegativePage() throws Exception
     {
-        // Arrange
-        Pageable expectedPageable = PageRequest.of(
-                0,
-                50,
-                Sort.by(
-                        Sort.Order.desc("measuredAt"),
-                        Sort.Order.asc("sensorId")));
-
-        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
-
-        when(service.findAll(expectedPageable))
-                .thenReturn(measurementsPage);
-
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("page", "-1"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
 
         // Verify
-        verify(service).findAll(expectedPageable);
+        verifyNoInteractions(service);
     }
 
     @ParameterizedTest
     @ValueSource(ints = { 0, -1 })
-    void testNonPositiveSizeFallsBackToDefaultSize(int size) throws Exception
+    void testRejectNonPositiveSize(int size) throws Exception
     {
-        // Arrange
-        Pageable expectedPageable = PageRequest.of(
-                0,
-                50,
-                Sort.by(
-                        Sort.Order.desc("measuredAt"),
-                        Sort.Order.asc("sensorId")));
-
-        Page<TemperatureMeasurement> measurementsPage = new PageImpl<>(List.of(), expectedPageable, 0);
-
-        when(service.findAll(expectedPageable))
-                .thenReturn(measurementsPage);
-
         // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("size", String.valueOf(size)))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'size'"));
 
         // Verify
-        verify(service).findAll(expectedPageable);
+        verifyNoInteractions(service);
     }
 
     @Test
     void testRejectSizeAboveMaximum() throws Exception
     {
+        int size = MAX_PAGE_SIZE + 1;
         // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
-                .param("size", "1001"))
-                .andExpect(status().isBadRequest());
+                .param("size", String.valueOf(size)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("PAGE_SIZE_TOO_LARGE"))
+                .andExpect(jsonPath("$.detail").value("size must not be greater than " + MAX_PAGE_SIZE));
 
         verifyNoInteractions(service);
     }
@@ -732,8 +847,58 @@ class TemperatureMeasurementControllerTest
         // Arrange Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sort", "temperature,asc"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_SORT_PROPERTY"))
+                .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));
 
         verifyNoInteractions(service);
     }
+
+    @Test
+    void testRejectGetMeasurementsWithInvalidFromParameter() throws Exception 
+    {
+        // Arrange Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("from", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'from'"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testGetMeasurementsWithInvalidPageParameter() throws Exception
+    {
+        mockMvc.perform(get("/api/measurements")
+                .param("page", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testGetMeasurementsWithInvalidSizeParameter() throws Exception
+    {
+        // Act + Assert
+        mockMvc.perform(get("/api/measurements")
+                .param("size", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'size'"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
 }
