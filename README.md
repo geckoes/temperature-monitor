@@ -43,6 +43,7 @@ The project will progressively evolve toward simulated external sensors, observa
 - Filter measurements by sensor and time range
 - Validate incoming measurement requests
 - Validate combinations of query parameters
+- Return consistent ProblemDetail error responses for invalid requests
 - Keep REST request/response DTOs separate from JPA entities
 - Manage database schema changes with Flyway
 - Run automated tests through CI
@@ -219,7 +220,13 @@ Pagination defaults:
 
 Pages are zero-based, so the first page is `0`.
 
-Requests with a `size` greater than `1000` result in `400 Bad Request`.
+Invalid pagination parameters result in `400 Bad Request`:
+
+| Parameter | Invalid values | Application code |
+| --- | --- | --- |
+| `page` | Non-numeric or negative | `INVALID_PARAMETER` |
+| `size` | Non-numeric, zero, or negative | `INVALID_PARAMETER` |
+| `size` | Greater than `1000` | `PAGE_SIZE_TOO_LARGE` |
 
 ### Sorting
 
@@ -312,6 +319,78 @@ A time range currently requires:
 Incomplete or invalid combinations result in `400 Bad Request`.
 
 Pagination and sorting remain available when querying a time range.
+
+---
+
+## Error Responses
+
+Invalid requests use `application/problem+json` responses based on Spring's
+`ProblemDetail` format. Every error response includes an HTTP `status` and an
+application-level `code`. Responses with a specific reason also include
+`detail`; validation failures include an `errors` array.
+
+For example, an invalid pagination value:
+
+```http
+GET /api/measurements?page=-1
+```
+
+returns:
+
+```json
+{
+  "status": 400,
+  "detail": "Invalid value for parameter 'page'",
+  "code": "INVALID_PARAMETER"
+}
+```
+
+### POST validation errors
+
+`POST /api/measurements` validates the required request fields:
+`temperature`, `unit`, `sensorId`, and `measuredAt`.
+
+Missing or blank values return `VALIDATION_FAILED` with field-level errors:
+
+```json
+{
+  "status": 400,
+  "code": "VALIDATION_FAILED",
+  "errors": [
+    {
+      "field": "sensorId",
+      "message": "sensorId must not be blank"
+    }
+  ]
+}
+```
+
+Malformed JSON, invalid enum values, or values that cannot be converted to
+their expected type return `INVALID_REQUEST_BODY`.
+
+### GET validation errors
+
+`GET /api/measurements` returns the following application codes for invalid
+query parameters:
+
+| Code | When it is returned |
+| --- | --- |
+| `INVALID_PARAMETER` | A typed parameter is invalid, or `page`/`size` is not valid according to the pagination rules. |
+| `PAGE_SIZE_TOO_LARGE` | `size` is greater than `1000`. |
+| `SENSOR_ID_REQUIRED` | A time range is supplied without `sensorId`. |
+| `INCOMPLETE_TIME_RANGE` | Only one of `from` and `to` is supplied. |
+| `INVALID_TIME_RANGE` | `from` is after `to`. |
+| `UNSUPPORTED_SORT_PROPERTY` | A sort property other than `measuredAt` or `sensorId` is requested. |
+
+For example, a size above the limit returns:
+
+```json
+{
+  "status": 400,
+  "detail": "size must not be greater than 1000",
+  "code": "PAGE_SIZE_TOO_LARGE"
+}
+```
 
 ---
 
@@ -452,7 +531,6 @@ cp src/main/resources/application-local.example.properties \
 Planned improvements include:
 
 - richer query capabilities
-- structured REST error responses
 - dedicated sensor registry
 - external sensor simulator
 - automated sensor traffic generation
