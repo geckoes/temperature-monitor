@@ -5,16 +5,22 @@ import java.time.OffsetDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.assertj.core.api.OffsetDateTimeAssert;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 
+import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import jakarta.transaction.Transactional;
@@ -27,9 +33,29 @@ public class TemperatureMeasurementRepositoryTest
     @Autowired
     private TemperatureMeasurementRepository repository;
 
+    @Autowired
+    private SensorRepository sensorRepository;
+
+    @Test
+    void testRejectMeasurementWithUnknownSensor() {
+        TemperatureMeasurement measurement = new TemperatureMeasurement(
+            new BigDecimal("20.50"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-10-19T08:00:00Z"),
+            "unregistered-sensor");
+
+            assertThrows(DataIntegrityViolationException.class,
+                () -> repository.saveAndFlush(measurement));
+    }
+
     @Test
     void testFindBySensorId()
     {
+        OffsetDateTime registeredAt = OffsetDateTime.parse("2026-10-19T00:00:00Z");
+
+        sensorRepository.saveAndFlush(new Sensor("sensor-001", "terminal-A", null, registeredAt));
+        sensorRepository.saveAndFlush(new Sensor("sensor-002", "terminal-B", null, registeredAt));
+
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
                 new BigDecimal("21.5"),
@@ -77,6 +103,13 @@ public class TemperatureMeasurementRepositoryTest
     @Test
     void testFindBySensorIdAndMeasuredAtBetween()
     {
+        sensorRepository.saveAndFlush(new Sensor(
+            "sensor-001",
+            "terminal-A",
+            null,
+            OffsetDateTime.parse("2026-10-19T00:00:00Z")
+        ));
+
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
                 new BigDecimal("21.5"),
