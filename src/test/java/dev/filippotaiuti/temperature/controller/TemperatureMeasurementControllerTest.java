@@ -5,9 +5,12 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -29,7 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
+import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
@@ -56,10 +61,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement saved = new TemperatureMeasurement(
-                new BigDecimal("23.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            "terminal-A");
 
         when(service.save(any(TemperatureMeasurementRequest.class)))
                 .thenReturn(saved);
@@ -72,6 +78,7 @@ class TemperatureMeasurementControllerTest
                          "temperature": 23.5,
                          "unit": "CELSIUS",
                          "sensorId": "sensor-001",
+                         "terminalId": "terminal-A",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
@@ -79,15 +86,23 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.temperature").value(23.5))
                 .andExpect(jsonPath("$.unit").value("CELSIUS"))
                 .andExpect(jsonPath("$.sensorId").value("sensor-001"))
+                .andExpect(jsonPath("$.terminalId").value("terminal-A"))
                 .andExpect(jsonPath("$.createdAt").doesNotExist());
+
         // Verify
-        verify(service).save(any(TemperatureMeasurementRequest.class));
+        ArgumentCaptor<TemperatureMeasurementRequest> captor = ArgumentCaptor.forClass(TemperatureMeasurementRequest.class);
+
+        verify(service).save(captor.capture());
+
+        TemperatureMeasurementRequest received = captor.getValue();
+        // Assert
+        assertEquals("terminal-A", received.getTerminalId());
     }
 
     @Test
     void testRejectMeasurementWithoutTemperature() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -95,6 +110,7 @@ class TemperatureMeasurementControllerTest
                          "temperature": null,
                          "unit": "FAHRENHEIT",
                          "sensorId": "sensor-001",
+                         "terminalId": "terminal-A",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
@@ -112,7 +128,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutUnit() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -120,6 +136,7 @@ class TemperatureMeasurementControllerTest
                          "temperature": 23.5,
                          "unit": null,
                          "sensorId": "sensor-001",
+                         "terminalId": "terminal-A",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
@@ -137,7 +154,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutSensorId() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -145,6 +162,7 @@ class TemperatureMeasurementControllerTest
                          "temperature": 23.5,
                          "unit": "CELSIUS",
                          "sensorId": null,
+                         "terminalId": "terminal-A",
                          "measuredAt": "2026-09-06T15:00:00Z"
                          }
                          """))
@@ -162,13 +180,14 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutTemperatureAndSensorId() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                          {
                          "unit": "CELSIUS",
-                         "measuredAt": "2026-09-06T15:00:00Z"
+                         "measuredAt": "2026-09-06T15:00:00Z",
+                         "terminalId": "terminal-A"
                          }
                          """))
                 .andExpect(status().isBadRequest())
@@ -186,7 +205,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithInvalidUnit() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -210,7 +229,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectIncompleteBody() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"temperature\":"))
@@ -227,7 +246,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementInvalidTemperature() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -251,7 +270,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectMeasurementWithoutMeasuredAt() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/measurements")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -259,6 +278,7 @@ class TemperatureMeasurementControllerTest
                          "temperature": 23.5,
                          "unit": "CELSIUS",
                          "sensorId": "sensor-002",
+                         "terminalId": "terminal-A",
                          "measuredAt": null
                          }
                          """))
@@ -278,16 +298,18 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.7"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.now(),
-                "sensor-002");
+            new BigDecimal("72.7"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.now(),
+            "sensor-002",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -328,16 +350,18 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.7"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("72.7"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -378,16 +402,18 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.7"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("72.7"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
@@ -430,7 +456,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectTimeRangeWithoutSensorId() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("from", "2026-09-07T10:00:00Z")
                 .param("to", "2026-09-07T12:00:00Z"))
@@ -448,7 +474,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectIncompleteTimeRangeWithoutTo() throws Exception
     {
-        // Arrange
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T10:00:00Z"))
@@ -465,7 +491,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectIncompleteTimeRangeWithoutFrom() throws Exception
     {
-        // Arrange
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("to", "2026-09-07T10:00:00Z"))
@@ -482,7 +508,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectInvalidTimeRange() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sensorId", "sensor-001")
                 .param("from", "2026-09-07T12:00:00Z")
@@ -503,16 +529,18 @@ class TemperatureMeasurementControllerTest
         // Arrange
         OffsetDateTime measuredAt = OffsetDateTime.parse("2026-09-22T10:00:00+02:00");
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                measuredAt,
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            measuredAt,
+            "sensor-001",
+            null);
 
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.7"),
-                TemperatureUnit.FAHRENHEIT,
-                measuredAt,
-                "sensor-002");
+            new BigDecimal("72.7"),
+            TemperatureUnit.FAHRENHEIT,
+            measuredAt,
+            "sensor-002",
+            null);
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
@@ -559,10 +587,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 2,
@@ -631,8 +660,9 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectSizeAboveMaximum() throws Exception
     {
+        // Arrange
         int size = MAX_PAGE_SIZE + 1;
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("size", String.valueOf(size)))
                 .andExpect(status().isBadRequest())
@@ -641,6 +671,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.code").value("PAGE_SIZE_TOO_LARGE"))
                 .andExpect(jsonPath("$.detail").value("size must not be greater than " + MAX_PAGE_SIZE));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -649,10 +680,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -683,10 +715,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -742,10 +775,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -776,10 +810,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -811,10 +846,11 @@ class TemperatureMeasurementControllerTest
     {
         // Arrange
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-22T10:00:00+02:00"),
+            "sensor-001",
+            null);
 
         Pageable expectedPageable = PageRequest.of(
                 0,
@@ -844,7 +880,7 @@ class TemperatureMeasurementControllerTest
     @Test
     void testRejectSortByUnsupportedProperty() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("sort", "temperature,asc"))
                 .andExpect(status().isBadRequest())
@@ -853,13 +889,14 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_SORT_PROPERTY"))
                 .andExpect(jsonPath("$.detail").value("Sorting by temperature is not allowed"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
-    void testRejectGetMeasurementsWithInvalidFromParameter() throws Exception 
+    void testRejectGetMeasurementsWithInvalidFromParameter() throws Exception
     {
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("from", "abc"))
                 .andExpect(status().isBadRequest())
@@ -868,12 +905,14 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'from'"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testGetMeasurementsWithInvalidPageParameter() throws Exception
     {
+        // Act + Assert
         mockMvc.perform(get("/api/measurements")
                 .param("page", "abc"))
                 .andExpect(status().isBadRequest())
@@ -882,6 +921,7 @@ class TemperatureMeasurementControllerTest
                 .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
                 .andExpect(jsonPath("$.detail").value("Invalid value for parameter 'page'"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -899,6 +939,142 @@ class TemperatureMeasurementControllerTest
 
         // Verify
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementWithoutTerminalId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                "temperature": 23.5,
+                                "unit": "CELSIUS",
+                                "sensorId": "sensor-001",
+                                "measuredAt": "2026-10-20T08:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+                .andExpect(jsonPath("$.errors[0].message")
+                        .value("terminalId must not be blank"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementWithBlankTerminalId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                "temperature": 23.5,
+                                "unit": "CELSIUS",
+                                "sensorId": "sensor-001",
+                                "terminalId": "   ",
+                                "measuredAt": "2026-10-20T08:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'terminalId')].message", hasItem("terminalId must not be blank")));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+        @Test
+    void testRejectMeasurementWithTerminalIdTooLong() throws Exception
+    {
+        // Arrange
+        String terminalId = "t".repeat(101);
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                        "temperature": 23.5,
+                        "unit": "CELSIUS",
+                        "sensorId": "sensor-001",
+                        "terminalId": "%s",
+                        "measuredAt": "2026-10-20T08:00:00Z"
+                         }
+                         """.formatted(terminalId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+                .andExpect(jsonPath("$.errors[0].message").value("terminalId must not exceed 100 characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectMeasurementWithInvalidTerminalId() throws Exception
+    {
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                        "temperature": 23.5,
+                        "unit": "CELSIUS",
+                        "sensorId": "sensor-001",
+                        "terminalId": "terminal A",
+                        "measuredAt": "2026-10-20T08:00:00Z"
+                         }
+                         """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+                .andExpect(jsonPath("$.errors[0].message").value("terminalId contains invalid characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRegisterMeasurementWithTerminalIdSpecialCharacters() throws Exception
+    {
+        // Arrange
+        String terminalId = "terminal._-" + "t".repeat(89);
+
+        TemperatureMeasurement saved = new TemperatureMeasurement(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            terminalId);
+
+        when(service.save(any(TemperatureMeasurementRequest.class)))
+                .thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "temperature": 23.5,
+                         "unit": "CELSIUS",
+                         "sensorId": "sensor-001",
+                         "terminalId": "%s",
+                         "measuredAt": "2026-10-20T08:00:00Z"
+                         }
+                         """.formatted(terminalId)))
+                .andExpect(status().isOk());
+
+        // Verify
+        ArgumentCaptor<TemperatureMeasurementRequest> captor = ArgumentCaptor.forClass(TemperatureMeasurementRequest.class);
+
+        verify(service).save(captor.capture());
+
+        TemperatureMeasurementRequest received = captor.getValue();
+        // Assert
+        assertEquals(terminalId, received.getTerminalId());
     }
 
 }

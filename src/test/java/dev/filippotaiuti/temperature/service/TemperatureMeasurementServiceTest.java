@@ -22,13 +22,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
+import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.repository.TemperatureMeasurementRepository;
+import dev.filippotaiuti.temperature.repository.SensorRepository;
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class TemperatureMeasurementServiceTest
 {
+
+    @Mock
+    private SensorRepository sensorRepository;
     @Mock
     private TemperatureMeasurementRepository repository;
 
@@ -38,24 +44,39 @@ class TemperatureMeasurementServiceTest
     @Test
     void testSaveTemperatureMeasurement()
     {
+        // Arrange
         TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
                 BigDecimal.valueOf(25.5),
                 TemperatureUnit.CELSIUS,
                 "sensor-001",
+                "terminal-A",
                 OffsetDateTime.parse("2026-09-06T15:00:00Z"));
 
         ArgumentCaptor<TemperatureMeasurement> captor = ArgumentCaptor.forClass(TemperatureMeasurement.class);
 
+        Sensor sensor = new Sensor(
+            "sensor-001",
+            "terminal-A",
+            null,
+            OffsetDateTime.parse("2026-10-01T00:00:00Z"));
+
+        when(sensorRepository.findById("sensor-001")).thenReturn(Optional.of(sensor));
+
+        // Act
         service.save(request);
 
+        // Verify
         verify(repository).save(captor.capture());
+        verify(sensorRepository).findById("sensor-001");
 
         TemperatureMeasurement saved = captor.getValue();
 
+        // Assert
         assertNotNull(saved);
         assertEquals(request.getTemperature(), saved.getTemperature());
         assertEquals(request.getUnit(), saved.getUnit());
         assertEquals(request.getSensorId(), saved.getSensorId());
+        assertEquals("terminal-A", saved.getTerminalId());
         assertNotNull(saved.getMeasuredAt());
         assertNotNull(saved.getCreatedAt());
     }
@@ -63,16 +84,19 @@ class TemperatureMeasurementServiceTest
     @Test
     void testFindAllMeasurements()
     {
+        // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.5"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.now(),
-                "sensor-002");
+            new BigDecimal("72.5"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.now(),
+            "sensor-002",
+            null);
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
@@ -84,15 +108,17 @@ class TemperatureMeasurementServiceTest
                     Sort.Order.asc("sensorId")
             )
         );
-        
+
         Page<TemperatureMeasurement> measurementsPage =
             new PageImpl<>(measurements, expectedPageable, measurements.size());
 
         when(repository.findAll(expectedPageable)).thenReturn(measurementsPage);
 
 
+        // Act
         Page<TemperatureMeasurement> result = service.findAll(expectedPageable);
 
+        // Assert
         assertEquals(measurementsPage.getContent(), result.getContent());
         assertEquals(measurementsPage.getNumber(), result.getNumber());
         assertEquals(measurementsPage.getSize(), result.getSize());
@@ -100,12 +126,14 @@ class TemperatureMeasurementServiceTest
         assertEquals(measurementsPage.getTotalElements(), result.getTotalElements());
         assertEquals(measurementsPage.getTotalPages(), result.getTotalPages());
 
+        // Verify
         verify(repository).findAll(expectedPageable);
     }
 
     @Test
     void testSavePreservesMeasuredAtFromRequest()
     {
+        // Arrange
         OffsetDateTime measuredAt = OffsetDateTime.parse("2026-09-06T15:00:00Z");
 
         TemperatureMeasurementRequest request = new TemperatureMeasurementRequest();
@@ -115,6 +143,7 @@ class TemperatureMeasurementServiceTest
         request.setSensorId("sensor-001");
         request.setMeasuredAt(measuredAt);
 
+        // Act
         service.save(request);
     }
 
@@ -123,15 +152,17 @@ class TemperatureMeasurementServiceTest
     {
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.5"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.now(),
-                "sensor-001");
+            new BigDecimal("72.5"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.now(),
+            "sensor-001",
+            null);
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
@@ -158,6 +189,7 @@ class TemperatureMeasurementServiceTest
         assertEquals(measurementsPage.getContent(), result.getContent());
         assertEquals(measurementsPage.getTotalElements(), result.getTotalElements());
 
+        // Verify
         verify(repository).findBySensorId("sensor-001", pageable);
     }
 
@@ -166,15 +198,17 @@ class TemperatureMeasurementServiceTest
     {
         // Arrange
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                OffsetDateTime.parse("2026-09-07T10:00:00Z"),
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-09-07T10:00:00Z"),
+            "sensor-001",
+            null);
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.5"),
-                TemperatureUnit.FAHRENHEIT,
-                OffsetDateTime.parse("2026-09-07T11:00:00Z"),
-                "sensor-001");
+            new BigDecimal("72.5"),
+            TemperatureUnit.FAHRENHEIT,
+            OffsetDateTime.parse("2026-09-07T11:00:00Z"),
+            "sensor-001",
+            null);
 
         List<TemperatureMeasurement> measurements = List.of(first, second);
 
@@ -203,7 +237,9 @@ class TemperatureMeasurementServiceTest
         // Assert
         assertEquals(measurementsPage.getSize(), result.getSize());
         assertEquals(measurementsPage.getContent(), result.getContent());
+        // Verify
         verify(repository).findBySensorIdAndMeasuredAtBetween("sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"), pageable);
     }
+
 }

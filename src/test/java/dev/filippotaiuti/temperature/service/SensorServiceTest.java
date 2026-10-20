@@ -36,14 +36,14 @@ public class SensorServiceTest {
     void testRegisterSensorReturnsSavedSensor() {
         // Arrange
         SensorRegistrationRequest request = new SensorRegistrationRequest(
-            "sensor-001", 
-            "terminal-A", 
+            "sensor-001",
+            "terminal-A",
             "North Warehouse"
         );
 
         Sensor sensor = new Sensor(
-            "sensor-001", 
-            "terminal-A", 
+            "sensor-001",
+            "terminal-A",
             "North Warehouse",
             OffsetDateTime.parse("2026-10-16T00:00:00Z")
         );
@@ -58,6 +58,7 @@ public class SensorServiceTest {
 
         ArgumentCaptor<Sensor> captor = ArgumentCaptor.forClass(Sensor.class);
 
+        // Verify
         verify(repository).save(captor.capture());
 
         Sensor submitted = captor.getValue();
@@ -73,8 +74,8 @@ public class SensorServiceTest {
     void testRejectRegistrationWithAssignedTerminal() {
         // Arrange
         SensorRegistrationRequest request = new SensorRegistrationRequest(
-            "sensor-002", 
-            "terminal-A", 
+            "sensor-002",
+            "terminal-A",
             null
         );
 
@@ -85,15 +86,16 @@ public class SensorServiceTest {
             service.register(request);
         });
 
+        // Verify
         verify(repository, never()).save(any(Sensor.class));
     }
-    
+
     @Test
     void testRejectRegistrationWithExistingSensorId() {
         // Arrange
         SensorRegistrationRequest request = new SensorRegistrationRequest(
-            "sensor-001", 
-            "terminal-B", 
+            "sensor-001",
+            "terminal-B",
             null
         );
 
@@ -104,6 +106,7 @@ public class SensorServiceTest {
             service.register(request);
         });
 
+        // Verify
         verify(repository, never()).save(any(Sensor.class));
     }
 

@@ -70,6 +70,7 @@ class SensorControllerTest
     @Test
     void testSensorRegistrationRequest() throws Exception
     {
+        // Arrange
         OffsetDateTime createdAt = OffsetDateTime.parse("2026-10-16T08:00:00Z");
 
         Sensor saved = new Sensor(
@@ -82,7 +83,7 @@ class SensorControllerTest
         when(service.register(any(SensorRegistrationRequest.class)))
             .thenReturn(saved);
 
-        // Arrange Act + Assert
+        // Act + Assert
         mockMvc.perform(post("/api/sensors")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -100,6 +101,7 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.name").value("Temperature Sensor B"))
                 .andExpect(jsonPath("$.createdAt").value("2026-10-16T08:00:00Z"));
 
+        // Verify
         verify(service).register(new SensorRegistrationRequest(
             "sensor-002",
             "terminal-B",
@@ -129,7 +131,7 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.code").value("TERMINAL_ALREADY_ASSIGNED"));
     }
 
-    @Test 
+    @Test
     void testRejectRegistrationWithExistingSensorId() throws Exception
     {
         // Arrange
@@ -168,6 +170,7 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
                 .andExpect(jsonPath("$.errors[0].message").value("sensorId must not be blank"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -188,6 +191,7 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
                 .andExpect(jsonPath("$.errors[0].message").value("terminalId must not be blank"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -208,6 +212,7 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors[0].field").value("sensorId"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -228,12 +233,14 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.errors[0].field").value("terminalId"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectRegistrationWithSensorIdTooLong() throws Exception
     {
+        // Arrange
         String sensorId = "s".repeat(101);
         // Act + Assert
         mockMvc.perform(post("/api/sensors")
@@ -250,12 +257,14 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
                 .andExpect(jsonPath("$.errors[0].message").value("sensorId must not exceed 100 characters"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectRegistrationWithTerminalIdTooLong() throws Exception
     {
+        // Arrange
         String terminalId = "t".repeat(101);
         // Act + Assert
         mockMvc.perform(post("/api/sensors")
@@ -272,12 +281,14 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
                 .andExpect(jsonPath("$.errors[0].message").value("terminalId must not exceed 100 characters"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRejectRegistrationWithNameTooLong() throws Exception
     {
+        // Arrange
         String name = "n".repeat(256);
         // Act + Assert
         mockMvc.perform(post("/api/sensors")
@@ -295,16 +306,18 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("name"))
                 .andExpect(jsonPath("$.errors[0].message").value("name must not exceed 255 characters"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRegisterSensorWithMaximumFieldLengths() throws Exception
     {
+        // Arrange
         String sensorId = "s".repeat(100);
         String terminalId = "t".repeat(100);
         String name = "n".repeat(255);
-        
+
         Sensor saved = new Sensor(
             sensorId,
             terminalId,
@@ -324,9 +337,10 @@ class SensorControllerTest
                          """.formatted(sensorId, terminalId, name)))
                 .andExpect(status().isCreated());
 
+        // Verify
         verify(service).register(new SensorRegistrationRequest(
-            sensorId, 
-            terminalId, 
+            sensorId,
+            terminalId,
             name)
         );
     }
@@ -349,7 +363,8 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
                 .andExpect(jsonPath("$.errors[0].message").value("sensorId contains invalid characters"));
 
-        
+
+        // Verify
         verifyNoInteractions(service);
     }
 
@@ -371,15 +386,17 @@ class SensorControllerTest
                 .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
                 .andExpect(jsonPath("$.errors[0].message").value("terminalId contains invalid characters"));
 
+        // Verify
         verifyNoInteractions(service);
     }
 
     @Test
     void testRegisterSensorWithSpecialCharacters() throws Exception
     {
+        // Arrange
         String sensorId = "sensor.room_01-A";
         String terminalId = "terminal.size_02-B";
-        
+
         Sensor saved = new Sensor(
             sensorId,
             terminalId,
@@ -398,9 +415,10 @@ class SensorControllerTest
                          """.formatted(sensorId, terminalId)))
                 .andExpect(status().isCreated());
 
+        // Verify
         verify(service).register(new SensorRegistrationRequest(
-            sensorId, 
-            terminalId, 
+            sensorId,
+            terminalId,
             null)
         );
     }

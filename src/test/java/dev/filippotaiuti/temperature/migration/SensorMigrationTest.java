@@ -3,7 +3,6 @@ package dev.filippotaiuti.temperature.migration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
 
@@ -12,17 +11,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.core.env.Environment;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
-import dev.filippotaiuti.temperature.entity.TemperatureUnit;
-
-import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +28,7 @@ public class SensorMigrationTest {
 
     @Test
     void testMigrationPreservesExistingSensor() {
+        // Arrange
         String schema = "sensor_migration_" + UUID.randomUUID().toString().replace("-", "");
 
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
@@ -120,6 +114,7 @@ public class SensorMigrationTest {
     }
 
     private void verifySensorMigrationFrom(String initialVersion) {
+        // Arrange
         String schema = "sensor_migration_" + UUID.randomUUID().toString().replace("-", "");
 
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
@@ -150,7 +145,11 @@ public class SensorMigrationTest {
                 """.formatted(schema)
             );
 
-            String measurementsQuery = "SELECT * FROM " + schema + ".temperature_measurements ORDER BY id";
+            String measurementsQuery = """
+                SELECT id, temperature, unit, sensor_id, measured_at, created_at
+                FROM %s.temperature_measurements
+                ORDER BY id
+                """.formatted(schema);
 
             List<Map<String, Object>> measurementsBefore = jdbc.queryForList(measurementsQuery);
 
@@ -185,6 +184,14 @@ public class SensorMigrationTest {
 
             assertEquals(3, measurementsBefore.size());
             assertEquals(measurementsBefore, measurementsAfter);
+
+            Long measurementsWithoutTerminal = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM %s.temperature_measurements
+                WHERE terminal_id IS NULL
+                """.formatted(schema), Long.class);
+
+            assertEquals(3L, measurementsWithoutTerminal.longValue());
         } finally {
             jdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
         }
