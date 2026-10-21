@@ -2,12 +2,14 @@ package dev.filippotaiuti.temperature.controller;
 
 import java.time.OffsetDateTime;
 
+import org.apache.catalina.connector.Response;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.data.web.SortDefault;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,9 +17,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.filippotaiuti.temperature.dto.MeasurementIngestionResult;
 import dev.filippotaiuti.temperature.dto.PagedResponse;
+import dev.filippotaiuti.temperature.dto.QuarantinedMeasurementResponse;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementResponse;
+import dev.filippotaiuti.temperature.entity.MeasurementIngestionStatus;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.exception.IncompleteTimeRangeException;
 import dev.filippotaiuti.temperature.exception.InvalidTimeRangeException;
@@ -47,10 +52,17 @@ public class TemperatureMeasurementController
     }
 
     @PostMapping
-    public TemperatureMeasurementResponse createMeasurement(@Valid @RequestBody TemperatureMeasurementRequest request)
+    public ResponseEntity<?> createMeasurement(@Valid @RequestBody TemperatureMeasurementRequest request)
     {
-        TemperatureMeasurement saved = service.save(request);
-        return TemperatureMeasurementResponse.from(saved);
+        MeasurementIngestionResult result = service.save(request);
+
+        if (result.status() == MeasurementIngestionStatus.QUARANTINED) {
+            return ResponseEntity.ok(new QuarantinedMeasurementResponse(
+                result.status(),
+                result.reason()));
+        }
+        return ResponseEntity.ok(
+            TemperatureMeasurementResponse.from(result.measurement()));
     }
 
     @GetMapping

@@ -52,7 +52,7 @@ The project will progressively evolve toward simulated external sensors, observa
 
 ## Tech Stack
 
-- Java 17
+- Java 21
 - Spring Boot
 - Spring Web MVC
 - Spring Data JPA
@@ -490,7 +490,7 @@ Flyway owns schema evolution, while Hibernate/JPA maps the application model ont
 
 ## Requirements
 
-- Java 17+
+- Java 21+
 - PostgreSQL
 - Maven, or the included Maven Wrapper
 - Docker, if PostgreSQL is run in a container

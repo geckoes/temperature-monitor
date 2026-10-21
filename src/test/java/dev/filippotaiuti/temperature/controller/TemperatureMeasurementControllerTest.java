@@ -32,9 +32,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
+import dev.filippotaiuti.temperature.dto.MeasurementIngestionResult;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
-import dev.filippotaiuti.temperature.entity.Sensor;
+import dev.filippotaiuti.temperature.entity.MeasurementIngestionStatus;
+import dev.filippotaiuti.temperature.entity.QuarantinedReason;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 import dev.filippotaiuti.temperature.mapper.TemperatureMeasurementResponseMapper;
@@ -68,26 +69,30 @@ class TemperatureMeasurementControllerTest
             "terminal-A");
 
         when(service.save(any(TemperatureMeasurementRequest.class)))
-                .thenReturn(saved);
+            .thenReturn(new MeasurementIngestionResult(
+                MeasurementIngestionStatus.STORED,
+                saved,
+                null
+            ));
 
         // Act + Assert
         mockMvc.perform(post("/api/measurements")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                         {
-                         "temperature": 23.5,
-                         "unit": "CELSIUS",
-                         "sensorId": "sensor-001",
-                         "terminalId": "terminal-A",
-                         "measuredAt": "2026-09-06T15:00:00Z"
-                         }
-                         """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.temperature").value(23.5))
-                .andExpect(jsonPath("$.unit").value("CELSIUS"))
-                .andExpect(jsonPath("$.sensorId").value("sensor-001"))
-                .andExpect(jsonPath("$.terminalId").value("terminal-A"))
-                .andExpect(jsonPath("$.createdAt").doesNotExist());
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                        {
+                        "temperature": 23.5,
+                        "unit": "CELSIUS",
+                        "sensorId": "sensor-001",
+                        "terminalId": "terminal-A",
+                        "measuredAt": "2026-09-06T15:00:00Z"
+                        }
+                        """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.temperature").value(23.5))
+            .andExpect(jsonPath("$.unit").value("CELSIUS"))
+            .andExpect(jsonPath("$.sensorId").value("sensor-001"))
+            .andExpect(jsonPath("$.terminalId").value("terminal-A"))
+            .andExpect(jsonPath("$.createdAt").doesNotExist());
 
         // Verify
         ArgumentCaptor<TemperatureMeasurementRequest> captor = ArgumentCaptor.forClass(TemperatureMeasurementRequest.class);
@@ -104,22 +109,22 @@ class TemperatureMeasurementControllerTest
     {
         // Act + Assert
         mockMvc.perform(post("/api/measurements")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                         {
-                         "temperature": null,
-                         "unit": "FAHRENHEIT",
-                         "sensorId": "sensor-001",
-                         "terminalId": "terminal-A",
-                         "measuredAt": "2026-09-06T15:00:00Z"
-                         }
-                         """))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.errors[0].field").value("temperature"))
-                .andExpect(jsonPath("$.errors[0].message").value("temperature is required"));
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                    {
+                    "temperature": null,
+                    "unit": "FAHRENHEIT",
+                    "sensorId": "sensor-001",
+                    "terminalId": "terminal-A",
+                    "measuredAt": "2026-09-06T15:00:00Z"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("temperature"))
+            .andExpect(jsonPath("$.errors[0].message").value("temperature is required"));
 
         // Verify
         verifyNoInteractions(service);
@@ -130,22 +135,22 @@ class TemperatureMeasurementControllerTest
     {
         // Act + Assert
         mockMvc.perform(post("/api/measurements")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                         {
-                         "temperature": 23.5,
-                         "unit": null,
-                         "sensorId": "sensor-001",
-                         "terminalId": "terminal-A",
-                         "measuredAt": "2026-09-06T15:00:00Z"
-                         }
-                         """))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
-                .andExpect(jsonPath("$.errors[0].field").value("unit"))
-                .andExpect(jsonPath("$.errors[0].message").value("unit is required"));
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                    {
+                    "temperature": 23.5,
+                    "unit": null,
+                    "sensorId": "sensor-001",
+                    "terminalId": "terminal-A",
+                    "measuredAt": "2026-09-06T15:00:00Z"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("unit"))
+            .andExpect(jsonPath("$.errors[0].message").value("unit is required"));
 
         // Verify
         verifyNoInteractions(service);
@@ -1051,7 +1056,11 @@ class TemperatureMeasurementControllerTest
             terminalId);
 
         when(service.save(any(TemperatureMeasurementRequest.class)))
-                .thenReturn(saved);
+            .thenReturn(new MeasurementIngestionResult(
+                MeasurementIngestionStatus.STORED,
+                saved,
+                null
+        ));
 
         // Act + Assert
         mockMvc.perform(post("/api/measurements")
@@ -1075,6 +1084,38 @@ class TemperatureMeasurementControllerTest
         TemperatureMeasurementRequest received = captor.getValue();
         // Assert
         assertEquals(terminalId, received.getTerminalId());
+    }
+
+    @Test
+    void testQuarantineMeasurementWithUnknownSensor() throws Exception {
+        // Arrange
+        when(service.save(any(TemperatureMeasurementRequest.class)))
+            .thenReturn(new MeasurementIngestionResult(
+                MeasurementIngestionStatus.QUARANTINED,
+                null,
+                QuarantinedReason.UNKNOWN_SENSOR));
+
+        // Act + Assert
+        mockMvc.perform(post("/api/measurements")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                    "temperature": 23.5,
+                    "unit": "CELSIUS",
+                    "sensorId": "sensor_unknown",
+                    "terminalId": "terminal-A",
+                    "measuredAt": "2026-10-21T08:00:00Z"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(
+                    MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.status").value("QUARANTINED"))
+            .andExpect(jsonPath("$.reason").value("UNKNOWN_SENSOR"))
+            .andExpect(jsonPath("$.temperature").doesNotExist());
+
+        // Verify
+        verify(service).save(any(TemperatureMeasurementRequest.class));
     }
 
 }

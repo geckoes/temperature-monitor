@@ -1,19 +1,24 @@
 package dev.filippotaiuti.temperature.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -21,13 +26,18 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+import dev.filippotaiuti.temperature.dto.MeasurementIngestionResult;
 import dev.filippotaiuti.temperature.dto.TemperatureMeasurementRequest;
+import dev.filippotaiuti.temperature.entity.MeasurementIngestionStatus;
+import dev.filippotaiuti.temperature.entity.QuarantinedMeasurement;
+import dev.filippotaiuti.temperature.entity.QuarantinedReason;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.entity.TemperatureMeasurement;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
-import dev.filippotaiuti.temperature.repository.TemperatureMeasurementRepository;
+import dev.filippotaiuti.temperature.repository.QuarantinedMeasurementRepository;
 import dev.filippotaiuti.temperature.repository.SensorRepository;
-import java.util.Optional;
+import dev.filippotaiuti.temperature.repository.TemperatureMeasurementRepository;
+;
 
 @ExtendWith(MockitoExtension.class)
 class TemperatureMeasurementServiceTest
@@ -37,6 +47,8 @@ class TemperatureMeasurementServiceTest
     private SensorRepository sensorRepository;
     @Mock
     private TemperatureMeasurementRepository repository;
+    @Mock
+    private QuarantinedMeasurementRepository quarantinedRepository;
 
     @InjectMocks
     private TemperatureMeasurementService service;
@@ -61,9 +73,12 @@ class TemperatureMeasurementServiceTest
             OffsetDateTime.parse("2026-10-01T00:00:00Z"));
 
         when(sensorRepository.findById("sensor-001")).thenReturn(Optional.of(sensor));
+        when(repository.save(any(TemperatureMeasurement.class)))
+            .thenAnswer(invocation ->
+                invocation.getArgument(0, TemperatureMeasurement.class));
 
         // Act
-        service.save(request);
+        MeasurementIngestionResult result = service.save(request);
 
         // Verify
         verify(repository).save(captor.capture());
@@ -72,7 +87,8 @@ class TemperatureMeasurementServiceTest
         TemperatureMeasurement saved = captor.getValue();
 
         // Assert
-        assertNotNull(saved);
+        assertEquals(MeasurementIngestionStatus.STORED, result.status());
+        assertSame(saved, result.measurement());
         assertEquals(request.getTemperature(), saved.getTemperature());
         assertEquals(request.getUnit(), saved.getUnit());
         assertEquals(request.getSensorId(), saved.getSensorId());
@@ -240,6 +256,180 @@ class TemperatureMeasurementServiceTest
         // Verify
         verify(repository).findBySensorIdAndMeasuredAtBetween("sensor-001",
                 OffsetDateTime.parse("2026-09-07T10:00:00Z"), OffsetDateTime.parse("2026-09-07T12:00:00Z"), pageable);
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithUnknownSensor() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor_unknown",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        when(sensorRepository.findById("sensor_unknown")).thenReturn(Optional.empty());
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.UNKNOWN_SENSOR, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.UNKNOWN_SENSOR, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithTerminalMismatch() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-B",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        Sensor sensor = new Sensor(
+            "sensor-001",
+            "terminal-A",
+            null,
+            OffsetDateTime.parse("2026-10-01T00:00:00Z"));
+
+        when(sensorRepository.findById("sensor-001")).thenReturn(Optional.of(sensor));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.TERMINAL_MISMATCH, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.TERMINAL_MISMATCH, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithoutAssignedTerminal() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        Sensor sensor = new Sensor(
+            "sensor-001",
+            null,
+            null,
+            OffsetDateTime.parse("2026-10-01T00:00:00Z"));
+
+        when(sensorRepository.findById("sensor-001")).thenReturn(Optional.of(sensor));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.TERMINAL_NOT_ASSIGNED, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.TERMINAL_NOT_ASSIGNED, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testRejectMeasurementIfAlreadyStored() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        TemperatureMeasurement existing = new TemperatureMeasurement(
+            request.getTemperature(),
+            request.getUnit(),
+            request.getMeasuredAt(),
+            request.getSensorId(),
+            request.getTerminalId()
+        );
+
+        when(repository.findBySensorIdAndMeasuredAt(
+            existing.getSensorId(),
+            existing.getMeasuredAt())
+        ).thenReturn(Optional.of(existing));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.ALREADY_STORED, result.status());
+        assertSame(existing, result.measurement());
+        assertNull(result.reason());
+
+        // Verify
+        verify(repository).findBySensorIdAndMeasuredAt(
+            request.getSensorId(),
+            request.getMeasuredAt()
+        );
+
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verifyNoInteractions(sensorRepository, quarantinedRepository);
     }
 
 }
