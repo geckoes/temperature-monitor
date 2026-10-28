@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -391,7 +392,7 @@ class TemperatureMeasurementServiceTest
     }
 
     @Test
-    void testRejectMeasurementIfAlreadyStored() {
+    void testReturnAlreadyStoredForIdenticalMeasurement() {
         // Arrange
         TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
             new BigDecimal("23.5"),
@@ -430,6 +431,271 @@ class TemperatureMeasurementServiceTest
 
         verify(repository, never()).save(any(TemperatureMeasurement.class));
         verifyNoInteractions(sensorRepository, quarantinedRepository);
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithMeasurementConflict() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("24.0"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        TemperatureMeasurement existing = new TemperatureMeasurement(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-10-21T08:00:00Z"),
+            "sensor-001",
+            "terminal-A"
+        );
+
+        when(repository.findBySensorIdAndMeasuredAt(
+            existing.getSensorId(),
+            existing.getMeasuredAt())
+        ).thenReturn(Optional.of(existing));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verifyNoInteractions(sensorRepository);
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithConflictingTerminal() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-B",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        TemperatureMeasurement existing = new TemperatureMeasurement(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-10-21T08:00:00Z"),
+            "sensor-001",
+            "terminal-A"
+        );
+
+        when(repository.findBySensorIdAndMeasuredAt(
+            existing.getSensorId(),
+            existing.getMeasuredAt())
+        ).thenReturn(Optional.of(existing));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verifyNoInteractions(sensorRepository);
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testQuarantinedMeasurementWithConflictingUnit() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.FAHRENHEIT,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        TemperatureMeasurement existing = new TemperatureMeasurement(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            OffsetDateTime.parse("2026-10-21T08:00:00Z"),
+            "sensor-001",
+            "terminal-A"
+        );
+
+        when(repository.findBySensorIdAndMeasuredAt(
+            existing.getSensorId(),
+            existing.getMeasuredAt())
+        ).thenReturn(Optional.of(existing));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verifyNoInteractions(sensorRepository);
+
+        ArgumentCaptor<QuarantinedMeasurement> captor =
+        ArgumentCaptor.forClass(QuarantinedMeasurement.class);
+
+        verify(quarantinedRepository).save(captor.capture());
+
+        QuarantinedMeasurement quarantined = captor.getValue();
+
+        assertEquals(request.getSensorId(), quarantined.getSensorId());
+        assertEquals(request.getTerminalId(), quarantined.getTerminalId());
+        assertEquals(request.getTemperature(), quarantined.getTemperature());
+        assertEquals(request.getUnit(), quarantined.getUnit());
+        assertEquals(request.getMeasuredAt(), quarantined.getMeasuredAt());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, quarantined.getReason());
+        assertNotNull(quarantined.getReceivedAt());
+    }
+
+    @Test
+    void testReuseExistingQuarantineForIdenticalMeasurement() {
+        // Arrange
+        TemperatureMeasurementRequest request = new TemperatureMeasurementRequest(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z")
+        );
+
+        QuarantinedMeasurement existing = new QuarantinedMeasurement(
+            new BigDecimal("23.5"),
+            TemperatureUnit.CELSIUS,
+            "sensor-001",
+            "terminal-A",
+            OffsetDateTime.parse("2026-10-21T08:00:00Z"),
+            QuarantinedReason.UNKNOWN_SENSOR,
+            OffsetDateTime.parse("2026-10-21T08:10:00Z")
+        );
+        when(quarantinedRepository.findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+                request.getSensorId(),
+                request.getTerminalId(),
+                request.getMeasuredAt(),
+                request.getTemperature(),
+                request.getUnit()))
+        .thenReturn(Optional.of(existing));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(existing.getReason(), result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verify(quarantinedRepository, never()).save(any(QuarantinedMeasurement.class));
+        verifyNoInteractions(sensorRepository);
+    }
+
+    @Test
+    void testReuseExistingQuarantineForConflictingMeasurement() {
+        // Arrange
+        OffsetDateTime measuredAt =
+                OffsetDateTime.parse("2026-10-28T08:00:00Z");
+
+        TemperatureMeasurementRequest request =
+                new TemperatureMeasurementRequest(
+                        new BigDecimal("24.0"),
+                        TemperatureUnit.CELSIUS,
+                        "sensor-001",
+                        "terminal-A",
+                        measuredAt);
+
+        TemperatureMeasurement stored = new TemperatureMeasurement(
+                new BigDecimal("23.5"),
+                TemperatureUnit.CELSIUS,
+                measuredAt,
+                "sensor-001",
+                "terminal-A");
+
+        QuarantinedMeasurement existingQuarantine =
+                new QuarantinedMeasurement(
+                        request.getTemperature(),
+                        request.getUnit(),
+                        request.getSensorId(),
+                        request.getTerminalId(),
+                        measuredAt,
+                        QuarantinedReason.MEASUREMENT_CONFLICT,
+                        OffsetDateTime.parse("2026-10-28T08:01:00Z"));
+
+        when(repository.findBySensorIdAndMeasuredAt(
+                request.getSensorId(), measuredAt))
+                .thenReturn(Optional.of(stored));
+
+        when(quarantinedRepository
+                .findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+                        request.getSensorId(),
+                        request.getTerminalId(),
+                        measuredAt,
+                        request.getTemperature(),
+                        request.getUnit()))
+                .thenReturn(Optional.of(existingQuarantine));
+
+        // Act
+        MeasurementIngestionResult result = service.save(request);
+
+        // Assert
+        assertEquals(MeasurementIngestionStatus.QUARANTINED, result.status());
+        assertEquals(QuarantinedReason.MEASUREMENT_CONFLICT, result.reason());
+        assertNull(result.measurement());
+
+        // Verify
+        verify(quarantinedRepository)
+                .findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+                        request.getSensorId(),
+                        request.getTerminalId(),
+                        measuredAt,
+                        request.getTemperature(),
+                        request.getUnit());
+
+        verify(repository, never()).save(any(TemperatureMeasurement.class));
+        verify(quarantinedRepository, never())
+                .save(any(QuarantinedMeasurement.class));
+        verifyNoInteractions(sensorRepository);
     }
 
 }

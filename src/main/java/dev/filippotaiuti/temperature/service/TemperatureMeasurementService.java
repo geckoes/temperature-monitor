@@ -35,10 +35,12 @@ public class TemperatureMeasurementService
 
     public MeasurementIngestionResult save(TemperatureMeasurementRequest request)
     {
-        Optional<TemperatureMeasurement> existsing = repository.findBySensorIdAndMeasuredAt(
-            request.getSensorId(), request.getMeasuredAt());
-        if (existsing.isPresent()) {
-            TemperatureMeasurement stored = existsing.get();
+        Optional<TemperatureMeasurement> existing = repository.findBySensorIdAndMeasuredAt(
+            request.getSensorId(),
+            request.getMeasuredAt()
+        );
+        if (existing.isPresent()) {
+            TemperatureMeasurement stored = existing.get();
 
             boolean sameContent = stored.getTemperature().compareTo(request.getTemperature()) == 0
                 && stored.getUnit() == request.getUnit()
@@ -51,8 +53,27 @@ public class TemperatureMeasurementService
                     null
                 );
             }
-
         }
+
+        Optional<QuarantinedMeasurement> existingQuarantine = quarantinedRepository.findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+            request.getSensorId(),
+            request.getTerminalId(),
+            request.getMeasuredAt(),
+            request.getTemperature(),
+            request.getUnit()
+        );
+        if (existingQuarantine.isPresent()) {
+            return new MeasurementIngestionResult(
+                MeasurementIngestionStatus.QUARANTINED,
+                null,
+                existingQuarantine.get().getReason()
+            );
+        }
+
+        if (existing.isPresent()) {
+            return quarantine(request, QuarantinedReason.MEASUREMENT_CONFLICT);
+        }
+
         Optional<Sensor> sensor = sensorRepository.findById(request.getSensorId());
         if (sensor.isEmpty()) {
             return quarantine(request, QuarantinedReason.UNKNOWN_SENSOR);
@@ -81,24 +102,23 @@ public class TemperatureMeasurementService
     }
 
     private MeasurementIngestionResult quarantine(TemperatureMeasurementRequest request, QuarantinedReason reason) {
-            QuarantinedMeasurement quarantined = new QuarantinedMeasurement(
-                request.getTemperature(),
-                request.getUnit(),
-                request.getSensorId(),
-                request.getTerminalId(),
-                request.getMeasuredAt(),
-                reason,
-                OffsetDateTime.now()
-            );
+        QuarantinedMeasurement quarantined = new QuarantinedMeasurement(
+            request.getTemperature(),
+            request.getUnit(),
+            request.getSensorId(),
+            request.getTerminalId(),
+            request.getMeasuredAt(),
+            reason,
+            OffsetDateTime.now()
+        );
 
-            quarantinedRepository.save(quarantined);
+        quarantinedRepository.save(quarantined);
 
-            return new MeasurementIngestionResult(
-                MeasurementIngestionStatus.QUARANTINED,
-                null,
-                reason
-            );
-
+        return new MeasurementIngestionResult(
+            MeasurementIngestionStatus.QUARANTINED,
+            null,
+            reason
+        );
     }
 
     public Page<TemperatureMeasurement> findAll(Pageable pageable)
