@@ -3,6 +3,8 @@ package dev.filippotaiuti.temperature.controller;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,5 +39,11 @@ public class SensorController {
         URI location = URI.create("/api/sensors/" + sensor.getSensorId());
 
         return ResponseEntity.created(location).body(response);
+    }
+
+    @GetMapping("/{sensorId}" )
+    public SensorResponse fetchSensorById(@PathVariable String sensorId) {
+        Sensor sensor = sensorService.fetchSensorById(sensorId);
+        return mapper.toResponse(sensor);
     }
 }

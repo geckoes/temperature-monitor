@@ -1,6 +1,8 @@
 package dev.filippotaiuti.temperature.service;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,6 +23,7 @@ import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.exception.TerminalAlreadyAssignedException;
 import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
+import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
 import dev.filippotaiuti.temperature.repository.SensorRepository;
 
 @ExtendWith (MockitoExtension.class)
@@ -108,6 +111,39 @@ public class SensorServiceTest {
 
         // Verify
         verify(repository, never()).save(any(Sensor.class));
+    }
+
+    @Test
+    void testFindSensorById() {
+        // Arrange
+        Sensor sensor = new Sensor(
+            "sensor-001",
+            "terminal-A",
+            "North Warehouse",
+            OffsetDateTime.parse("2026-10-16T00:00:00Z")
+        );
+
+        when(repository.findById("sensor-001")).thenReturn(Optional.of(sensor));
+
+        // Act
+        Sensor result = service.fetchSensorById("sensor-001");
+
+        // Assert
+        assertSame(sensor, result);
+
+        // Verify
+        verify(repository).findById("sensor-001");
+    }
+
+    @Test
+    void testFetchUnknownThrowsSensorNotFound() {
+        // Arrange
+        when(repository.findById("sensor-unknown")).thenReturn(Optional.empty());
+
+        // Act + Assert
+        assertThrows(SensorNotFoundException.class, () -> {
+            service.fetchSensorById("sensor-unknown");
+        });
     }
 
 }

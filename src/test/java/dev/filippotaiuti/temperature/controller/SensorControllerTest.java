@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -22,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
+import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
 import dev.filippotaiuti.temperature.exception.TerminalAlreadyAssignedException;
 import dev.filippotaiuti.temperature.mapper.SensorResponseMapper;
 import dev.filippotaiuti.temperature.service.SensorService;
@@ -421,6 +424,53 @@ class SensorControllerTest
             terminalId,
             null)
         );
+    }
+
+    @Test
+    void testFetchSensorBySensorId() throws Exception
+    {
+        // Arrange
+        String sensorId = "sensor.room_01-A";
+        String terminalId = "terminal.size_02-A";
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalId,
+            null,
+            OffsetDateTime.parse("2026-10-16T08:00:00Z"));
+
+        when(service.fetchSensorById(sensorId)).thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/sensors/{sensorId}", sensorId))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value(sensorId))
+            .andExpect(jsonPath("$.terminalId").value(terminalId))
+            .andExpect(jsonPath("$.createdAt").exists());
+
+        // Verify
+        verify(service).fetchSensorById(sensorId);
+    }
+
+    @Test
+    void testFetchUnknownSensorBySensorId() throws Exception
+    {
+        // Arrange
+        String sensorId = "sensor-unknown";
+
+        when(service.fetchSensorById(sensorId)).thenThrow(new SensorNotFoundException(sensorId));
+
+        // Act + Assert
+        mockMvc.perform(get("/api/sensors/{sensorId}", sensorId))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.code").value("SENSOR_NOT_FOUND"))
+            .andExpect(jsonPath("$.message").value("Sensor '" + sensorId + "' not found."));
+        
+        // Verify
+        verify(service).fetchSensorById(sensorId);
     }
 
 }
