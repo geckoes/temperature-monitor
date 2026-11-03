@@ -467,7 +467,7 @@ class SensorControllerTest
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.status").value(404))
             .andExpect(jsonPath("$.code").value("SENSOR_NOT_FOUND"))
-            .andExpect(jsonPath("$.message").value("Sensor '" + sensorId + "' not found."));
+            .andExpect(jsonPath("$.detail").value("Sensor '" + sensorId + "' not found."));
         
         // Verify
         verify(service).fetchSensorById(sensorId);

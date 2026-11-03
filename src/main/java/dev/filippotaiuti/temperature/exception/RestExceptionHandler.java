@@ -15,6 +15,16 @@ import dev.filippotaiuti.temperature.dto.ValidationError;
 @RestControllerAdvice
 public class RestExceptionHandler {
 
+    @ExceptionHandler(SensorNotFoundException.class)
+    public ProblemDetail handleSensorNotFound(SensorNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                ex.getMessage());
+        
+        problem.setProperty("code", "SENSOR_NOT_FOUND");
+        return problem;
+    }
+    
     @ExceptionHandler(SensorAlreadyExistsException.class)
     public ProblemDetail handleSensorAlreadyExists(SensorAlreadyExistsException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
