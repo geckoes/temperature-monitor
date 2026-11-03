@@ -6,12 +6,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
 import dev.filippotaiuti.temperature.dto.SensorResponse;
+import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.mapper.SensorResponseMapper;
 import dev.filippotaiuti.temperature.service.SensorService;
@@ -44,6 +46,15 @@ public class SensorController {
     @GetMapping("/{sensorId}" )
     public SensorResponse fetchSensorById(@PathVariable String sensorId) {
         Sensor sensor = sensorService.fetchSensorById(sensorId);
+        return mapper.toResponse(sensor);
+    }
+
+    @PutMapping("/{sensorId}/terminal")
+    public SensorResponse assignTerminal(
+        @PathVariable String sensorId,
+        @RequestBody SensorTerminalAssignmentRequest request) {
+
+        Sensor sensor = sensorService.assignTerminalToSensor(sensorId, request);
         return mapper.toResponse(sensor);
     }
 }

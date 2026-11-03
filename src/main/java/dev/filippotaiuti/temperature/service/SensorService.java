@@ -1,10 +1,12 @@
 package dev.filippotaiuti.temperature.service;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
+import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
 import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
@@ -39,5 +41,22 @@ public class SensorService {
     public Sensor fetchSensorById(String sensorId) {
         return repository.findById(sensorId)
             .orElseThrow(() -> new SensorNotFoundException(sensorId));
+    }
+
+    public Sensor assignTerminalToSensor(String sensorId, SensorTerminalAssignmentRequest request) {
+        Sensor sensor = fetchSensorById(sensorId);
+
+        if ( !Objects.equals(request.terminalId(), sensor.getTerminalId()) && repository.existsByTerminalId(request.terminalId())) {
+            throw new TerminalAlreadyAssignedException(request.terminalId());
+        }
+
+        Sensor updatedSensor = new Sensor(
+            sensor.getSensorId(),
+            request.terminalId(),
+            sensor.getName(),
+            sensor.getCreatedAt()
+        );
+
+        return repository.save(updatedSensor);
     }
 }

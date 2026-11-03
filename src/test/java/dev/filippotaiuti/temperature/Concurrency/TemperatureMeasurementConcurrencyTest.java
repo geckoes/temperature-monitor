@@ -39,9 +39,6 @@ import org.springframework.aop.framework.ProxyFactory;
 public class TemperatureMeasurementConcurrencyTest {
 
     @Autowired
-    private TemperatureMeasurementService service;
-
-    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired

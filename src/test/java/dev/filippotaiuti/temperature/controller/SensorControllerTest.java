@@ -16,12 +16,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
+import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
 import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
 import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
@@ -473,4 +475,34 @@ class SensorControllerTest
         verify(service).fetchSensorById(sensorId);
     }
 
+    @Test 
+    void testAssignTerminalToSensor() throws Exception {
+        // Arrange
+        String sensorId = "sensor-001";
+        SensorTerminalAssignmentRequest terminalRequest = new SensorTerminalAssignmentRequest("terminal-B");
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalRequest.terminalId(),
+            null,
+            OffsetDateTime.parse("2026-11-03T08:00:00Z"));
+
+        when(service.assignTerminalToSensor(sensorId, terminalRequest)).thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                         {
+                         "terminalId": "%s"
+                         }
+                         """.formatted(terminalRequest.terminalId())))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.sensorId").value(sensorId))
+                .andExpect(jsonPath("$.terminalId").value(terminalRequest.terminalId()));
+
+        // Verify
+        verify(service).assignTerminalToSensor(sensorId, terminalRequest);
+    }
 }
