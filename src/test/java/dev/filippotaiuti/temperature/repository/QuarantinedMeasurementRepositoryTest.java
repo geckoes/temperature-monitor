@@ -16,7 +16,6 @@ import org.springframework.test.context.ActiveProfiles;
 
 import dev.filippotaiuti.temperature.entity.QuarantinedMeasurement;
 import dev.filippotaiuti.temperature.entity.QuarantinedReason;
-import dev.filippotaiuti.temperature.entity.Sensor;
 import dev.filippotaiuti.temperature.entity.TemperatureUnit;
 
 import jakarta.persistence.EntityManager;
@@ -43,8 +42,7 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:10:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:10:00Z"));
 
         // Act
         QuarantinedMeasurement saved = repository.save(quarantined);
@@ -75,8 +73,7 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:10:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:10:00Z"));
 
         // Act
         QuarantinedMeasurement saved = repository.save(quarantined);
@@ -88,8 +85,7 @@ public class QuarantinedMeasurementRepositoryTest {
             saved.getTerminalId(),
             saved.getMeasuredAt(),
             new BigDecimal("23.50"),
-            saved.getUnit()
-        ).orElseThrow();
+            saved.getUnit()).orElseThrow();
 
         // Assert
         assertNotNull(result);
@@ -114,8 +110,7 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:10:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:10:00Z"));
 
         // Act
         repository.save(firstQuarantined);
@@ -130,12 +125,11 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:20:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:20:00Z"));
 
         // Act + Assert
         assertThrows(DataIntegrityViolationException.class,
-                () -> repository.saveAndFlush(secondQuarantined));
+            () -> repository.saveAndFlush(secondQuarantined));
     }
 
     @Test
@@ -148,8 +142,7 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:10:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:10:00Z"));
 
         QuarantinedMeasurement secondQuarantined = new QuarantinedMeasurement(
             new BigDecimal("24.0"),
@@ -158,8 +151,7 @@ public class QuarantinedMeasurementRepositoryTest {
             "terminal-A",
             OffsetDateTime.parse("2026-10-21T09:00:00Z"),
             QuarantinedReason.UNKNOWN_SENSOR,
-            OffsetDateTime.parse("2026-10-21T09:20:00Z")
-        );
+            OffsetDateTime.parse("2026-10-21T09:20:00Z"));
 
         // Act
         QuarantinedMeasurement firstSaved = repository.saveAndFlush(firstQuarantined);

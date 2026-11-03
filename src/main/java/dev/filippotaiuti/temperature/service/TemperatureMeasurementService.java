@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,25 +21,22 @@ import dev.filippotaiuti.temperature.repository.SensorRepository;
 import dev.filippotaiuti.temperature.repository.TemperatureMeasurementRepository;
 
 @Service
-public class TemperatureMeasurementService
-{
+public class TemperatureMeasurementService {
     private final TemperatureMeasurementRepository repository;
     private final SensorRepository sensorRepository;
     private final QuarantinedMeasurementRepository quarantinedRepository;
 
-    public TemperatureMeasurementService(TemperatureMeasurementRepository repository, SensorRepository sensorRepository, QuarantinedMeasurementRepository quarantinedRepository)
-    {
+    public TemperatureMeasurementService(TemperatureMeasurementRepository repository, SensorRepository sensorRepository,
+        QuarantinedMeasurementRepository quarantinedRepository) {
         this.repository = repository;
         this.sensorRepository = sensorRepository;
         this.quarantinedRepository = quarantinedRepository;
     }
 
-    public MeasurementIngestionResult save(TemperatureMeasurementRequest request)
-    {
+    public MeasurementIngestionResult save(TemperatureMeasurementRequest request) {
         Optional<TemperatureMeasurement> existing = repository.findBySensorIdAndMeasuredAt(
             request.getSensorId(),
-            request.getMeasuredAt()
-        );
+            request.getMeasuredAt());
         if (existing.isPresent()) {
             TemperatureMeasurement stored = existing.get();
 
@@ -50,24 +48,22 @@ public class TemperatureMeasurementService
                 return new MeasurementIngestionResult(
                     MeasurementIngestionStatus.ALREADY_STORED,
                     stored,
-                    null
-                );
+                    null);
             }
         }
 
-        Optional<QuarantinedMeasurement> existingQuarantine = quarantinedRepository.findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
-            request.getSensorId(),
-            request.getTerminalId(),
-            request.getMeasuredAt(),
-            request.getTemperature(),
-            request.getUnit()
-        );
+        Optional<QuarantinedMeasurement> existingQuarantine = quarantinedRepository
+            .findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+                request.getSensorId(),
+                request.getTerminalId(),
+                request.getMeasuredAt(),
+                request.getTemperature(),
+                request.getUnit());
         if (existingQuarantine.isPresent()) {
             return new MeasurementIngestionResult(
                 MeasurementIngestionStatus.QUARANTINED,
                 null,
-                existingQuarantine.get().getReason()
-            );
+                existingQuarantine.get().getReason());
         }
 
         if (existing.isPresent()) {
@@ -86,19 +82,17 @@ public class TemperatureMeasurementService
         }
 
         TemperatureMeasurement measurement = new TemperatureMeasurement(
-                request.getTemperature(),
-                request.getUnit(),
-                request.getMeasuredAt(),
-                request.getSensorId(),
-                request.getTerminalId()
-        );
+            request.getTemperature(),
+            request.getUnit(),
+            request.getMeasuredAt(),
+            request.getSensorId(),
+            request.getTerminalId());
         TemperatureMeasurement saved = repository.save(measurement);
 
         return new MeasurementIngestionResult(
             MeasurementIngestionStatus.STORED,
             saved,
-            null
-        );
+            null);
     }
 
     private MeasurementIngestionResult quarantine(TemperatureMeasurementRequest request, QuarantinedReason reason) {
@@ -109,25 +103,39 @@ public class TemperatureMeasurementService
             request.getTerminalId(),
             request.getMeasuredAt(),
             reason,
-            OffsetDateTime.now()
-        );
+            OffsetDateTime.now());
 
-        quarantinedRepository.save(quarantined);
+        try {
+            quarantinedRepository.save(quarantined);
+        } catch (DataIntegrityViolationException exception) {
+            Optional<QuarantinedMeasurement> existing = quarantinedRepository
+                .findBySensorIdAndTerminalIdAndMeasuredAtAndTemperatureAndUnit(
+                    request.getSensorId(),
+                    request.getTerminalId(),
+                    request.getMeasuredAt(),
+                    request.getTemperature(),
+                    request.getUnit());
 
+            if (existing.isEmpty()) {
+                throw exception;
+            }
+
+            return new MeasurementIngestionResult(
+                MeasurementIngestionStatus.QUARANTINED,
+                null,
+                existing.get().getReason());
+        }
         return new MeasurementIngestionResult(
             MeasurementIngestionStatus.QUARANTINED,
             null,
-            reason
-        );
+            reason);
     }
 
-    public Page<TemperatureMeasurement> findAll(Pageable pageable)
-    {
+    public Page<TemperatureMeasurement> findAll(Pageable pageable) {
         return repository.findAll(pageable);
     }
 
-    public Page<TemperatureMeasurement> findBySensorId(String sensorId, Pageable pageable)
-    {
+    public Page<TemperatureMeasurement> findBySensorId(String sensorId, Pageable pageable) {
         return repository.findBySensorId(sensorId, pageable);
     }
 
@@ -138,12 +146,11 @@ public class TemperatureMeasurementService
      * @return
      */
     public Page<TemperatureMeasurement> findBySensorIdAndMeasuredAtBetween(String sensorId,
-            OffsetDateTime offsetDateTimeFrom,
-            OffsetDateTime offsetDateTimeTo,
-            Pageable pageable)
-    {
+        OffsetDateTime offsetDateTimeFrom,
+        OffsetDateTime offsetDateTimeTo,
+        Pageable pageable) {
         return repository.findBySensorIdAndMeasuredAtBetween(sensorId,
-                offsetDateTimeFrom, offsetDateTimeTo, pageable);
+            offsetDateTimeFrom, offsetDateTimeTo, pageable);
     }
 
 }
