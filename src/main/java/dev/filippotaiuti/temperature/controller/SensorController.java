@@ -43,7 +43,7 @@ public class SensorController {
         return ResponseEntity.created(location).body(response);
     }
 
-    @GetMapping("/{sensorId}" )
+    @GetMapping("/{sensorId}")
     public SensorResponse fetchSensorById(@PathVariable String sensorId) {
         Sensor sensor = sensorService.fetchSensorById(sensorId);
         return mapper.toResponse(sensor);
@@ -52,7 +52,7 @@ public class SensorController {
     @PutMapping("/{sensorId}/terminal")
     public SensorResponse assignTerminal(
         @PathVariable String sensorId,
-        @RequestBody SensorTerminalAssignmentRequest request) {
+        @Valid @RequestBody SensorTerminalAssignmentRequest request) {
 
         Sensor sensor = sensorService.assignTerminalToSensor(sensorId, request);
         return mapper.toResponse(sensor);
