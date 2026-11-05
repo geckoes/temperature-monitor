@@ -43,15 +43,19 @@ public class TemperatureMeasurement {
     @Column(name = "sensor_id", nullable = false)
     private String sensorId;
 
+    @Column(name = "terminal_id", length = 100)
+    private String terminalId;
+
     protected TemperatureMeasurement() {
         // Default constructor for JPA
     }
 
-    public TemperatureMeasurement(BigDecimal temperature, TemperatureUnit unit, OffsetDateTime measuredAt, String sensorId) {
+    public TemperatureMeasurement(BigDecimal temperature, TemperatureUnit unit, OffsetDateTime measuredAt, String sensorId, String terminalId) {
         this.temperature = temperature;
         this.unit = unit;
         this.measuredAt = measuredAt;
         this.sensorId = sensorId;
+        this.terminalId = terminalId;
         this.createdAt = OffsetDateTime.now();
     }
 
@@ -66,12 +70,15 @@ public class TemperatureMeasurement {
         return unit;
     }
     public OffsetDateTime getMeasuredAt() {
-        return measuredAt;  
+        return measuredAt;
     }
     public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
     public String getSensorId() {
         return sensorId;
+    }
+    public String getTerminalId() {
+        return terminalId;
     }
 }

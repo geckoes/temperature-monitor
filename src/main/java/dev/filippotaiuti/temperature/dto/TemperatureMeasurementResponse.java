@@ -12,6 +12,7 @@ public class TemperatureMeasurementResponse
     private BigDecimal temperature;
     private TemperatureUnit unit;
     private String sensorId;
+    private String terminalId;
     private OffsetDateTime measuredAt;
 
     public TemperatureMeasurementResponse(
@@ -19,6 +20,7 @@ public class TemperatureMeasurementResponse
             BigDecimal temperature,
             TemperatureUnit unit,
             String sensorId,
+            String terminalId,
             OffsetDateTime measuredAt)
     {
 
@@ -26,6 +28,7 @@ public class TemperatureMeasurementResponse
         this.temperature = temperature;
         this.unit = unit;
         this.sensorId = sensorId;
+        this.terminalId = terminalId;
         this.measuredAt = measuredAt;
     }
 
@@ -49,6 +52,11 @@ public class TemperatureMeasurementResponse
         return sensorId;
     }
 
+    public String getTerminalId()
+    {
+        return terminalId;
+    }
+
     public OffsetDateTime getMeasuredAt()
     {
         return measuredAt;
@@ -63,6 +71,7 @@ public class TemperatureMeasurementResponse
                 measurement.getTemperature(),
                 measurement.getUnit(),
                 measurement.getSensorId(),
+                measurement.getTerminalId(),
                 measurement.getMeasuredAt());
     }
 

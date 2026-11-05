@@ -1,6 +1,7 @@
 package dev.filippotaiuti.temperature.repository;
 
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,4 +28,7 @@ public interface TemperatureMeasurementRepository
      */
     Page<TemperatureMeasurement> findBySensorIdAndMeasuredAtBetween(String sensorId, OffsetDateTime offsetDateTimeFrom,
             OffsetDateTime offsetDateTimeTo, Pageable pageable);
+
+    Optional<TemperatureMeasurement> findBySensorIdAndMeasuredAt(String sensorId, OffsetDateTime measuredAt);
+
 }

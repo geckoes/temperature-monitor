@@ -12,8 +12,39 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import dev.filippotaiuti.temperature.dto.ValidationError;
 
-@RestControllerAdvice 
+@RestControllerAdvice
 public class RestExceptionHandler {
+
+    @ExceptionHandler(SensorNotFoundException.class)
+    public ProblemDetail handleSensorNotFound(SensorNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                ex.getMessage());
+        
+        problem.setProperty("code", "SENSOR_NOT_FOUND");
+        return problem;
+    }
+    
+    @ExceptionHandler(SensorAlreadyExistsException.class)
+    public ProblemDetail handleSensorAlreadyExists(SensorAlreadyExistsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                ex.getMessage());
+
+        problem.setProperty("code", "SENSOR_ALREADY_EXISTS");
+        return problem;
+    }
+
+    @ExceptionHandler(TerminalAlreadyAssignedException.class)
+    public ProblemDetail handleTerminalAlreadyAssigned(TerminalAlreadyAssignedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                ex.getMessage());
+
+        problem.setProperty("code", "TERMINAL_ALREADY_ASSIGNED");
+
+        return problem;
+    }
 
     @ExceptionHandler(InvalidPaginationParameterException.class)
     public ProblemDetail handleInvalidPaginationParameter(InvalidPaginationParameterException ex) {

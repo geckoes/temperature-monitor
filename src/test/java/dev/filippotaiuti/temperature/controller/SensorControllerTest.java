@@ -1,0 +1,641 @@
+package dev.filippotaiuti.temperature.controller;
+
+import java.time.OffsetDateTime;
+
+import org.junit.jupiter.api.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
+import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
+import dev.filippotaiuti.temperature.entity.Sensor;
+import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
+import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
+import dev.filippotaiuti.temperature.exception.TerminalAlreadyAssignedException;
+import dev.filippotaiuti.temperature.mapper.SensorResponseMapper;
+import dev.filippotaiuti.temperature.service.SensorService;
+
+@Import(SensorResponseMapper.class)
+@WebMvcTest(SensorController.class)
+class SensorControllerTest {
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private SensorService service;
+
+    @Test
+    void testRegisterSensorWithoutName() throws Exception {
+        // Arrange
+        Sensor saved = new Sensor(
+            "sensor-001",
+            "terminal-A",
+            null,
+            OffsetDateTime.parse("2026-10-16T08:00:00Z"));
+
+        when(service.register(any(SensorRegistrationRequest.class)))
+            .thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "terminal-A"
+                }
+                """))
+            .andExpect(status().isCreated())
+            .andExpect(header().string("Location", "/api/sensors/sensor-001"))
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value("sensor-001"))
+            .andExpect(jsonPath("$.terminalId").value("terminal-A"))
+            .andExpect(jsonPath("$.createdAt").exists());
+
+    }
+
+    @Test
+    void testSensorRegistrationRequest() throws Exception {
+        // Arrange
+        OffsetDateTime createdAt = OffsetDateTime.parse("2026-10-16T08:00:00Z");
+
+        Sensor saved = new Sensor(
+            "sensor-002",
+            "terminal-B",
+            "Temperature Sensor B",
+            createdAt);
+
+        when(service.register(any(SensorRegistrationRequest.class)))
+            .thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-002",
+                "terminalId": "terminal-B",
+                "name": "Temperature Sensor B"
+                }
+                """))
+            .andExpect(status().isCreated())
+            .andExpect(header().string("Location", "/api/sensors/sensor-002"))
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value("sensor-002"))
+            .andExpect(jsonPath("$.terminalId").value("terminal-B"))
+            .andExpect(jsonPath("$.name").value("Temperature Sensor B"))
+            .andExpect(jsonPath("$.createdAt").value("2026-10-16T08:00:00Z"));
+
+        // Verify
+        verify(service).register(new SensorRegistrationRequest(
+            "sensor-002",
+            "terminal-B",
+            "Temperature Sensor B"));
+    }
+
+    @Test
+    void testRejectRegistrationWithAssignedTerminal() throws Exception {
+        // Arrange
+        when(service.register(any(SensorRegistrationRequest.class)))
+            .thenThrow(new TerminalAlreadyAssignedException("terminal-A"));
+
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-002",
+                "terminalId": "terminal-A"
+                }
+                """))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.code").value("TERMINAL_ALREADY_ASSIGNED"));
+    }
+
+    @Test
+    void testRejectRegistrationWithExistingSensorId() throws Exception {
+        // Arrange
+        when(service.register(any(SensorRegistrationRequest.class)))
+            .thenThrow(new SensorAlreadyExistsException("sensor-001"));
+
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "terminal-B"
+                }
+                """))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.code").value("SENSOR_ALREADY_EXISTS"));
+    }
+
+    @Test
+    void testRejectRegistrationWithoutSensorId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "terminal-A"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
+            .andExpect(jsonPath("$.errors[0].message").value("sensorId must not be blank"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithoutTerminalId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+            .andExpect(jsonPath("$.errors[0].message").value("terminalId must not be blank"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithBlankSensorId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "   ",
+                "terminalId": "terminal-A"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("sensorId"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithBlankTerminalId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "   "
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithSensorIdTooLong() throws Exception {
+        // Arrange
+        String sensorId = "s".repeat(101);
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "%s",
+                "terminalId": "terminal-A"
+                }
+                """.formatted(sensorId)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
+            .andExpect(jsonPath("$.errors[0].message").value("sensorId must not exceed 100 characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithTerminalIdTooLong() throws Exception {
+        // Arrange
+        String terminalId = "t".repeat(101);
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "%s"
+                }
+                """.formatted(terminalId)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+            .andExpect(jsonPath("$.errors[0].message").value("terminalId must not exceed 100 characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithNameTooLong() throws Exception {
+        // Arrange
+        String name = "n".repeat(256);
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "terminal-A",
+                "name": "%s"
+                }
+                """.formatted(name)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("name"))
+            .andExpect(jsonPath("$.errors[0].message").value("name must not exceed 255 characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRegisterSensorWithMaximumFieldLengths() throws Exception {
+        // Arrange
+        String sensorId = "s".repeat(100);
+        String terminalId = "t".repeat(100);
+        String name = "n".repeat(255);
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalId,
+            name,
+            OffsetDateTime.parse("2026-10-16T08:00:00Z"));
+
+        when(service.register(new SensorRegistrationRequest(sensorId, terminalId, name))).thenReturn(saved);
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "%s",
+                "terminalId": "%s",
+                "name": "%s"
+                }
+                """.formatted(sensorId, terminalId, name)))
+            .andExpect(status().isCreated());
+
+        // Verify
+        verify(service).register(new SensorRegistrationRequest(
+            sensorId,
+            terminalId,
+            name));
+    }
+
+    @Test
+    void testRejectRegistrationWithInvalidSensorId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor 001",
+                "terminalId": "terminal-A"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("sensorId"))
+            .andExpect(jsonPath("$.errors[0].message").value("sensorId contains invalid characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectRegistrationWithInvalidTerminalId() throws Exception {
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "sensor-001",
+                "terminalId": "terminal A"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+            .andExpect(jsonPath("$.errors[0].message").value("terminalId contains invalid characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRegisterSensorWithSpecialCharacters() throws Exception {
+        // Arrange
+        String sensorId = "sensor.room_01-A";
+        String terminalId = "terminal.size_02-B";
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalId,
+            null,
+            OffsetDateTime.parse("2026-10-16T08:00:00Z"));
+
+        when(service.register(new SensorRegistrationRequest(sensorId, terminalId, null))).thenReturn(saved);
+        // Act + Assert
+        mockMvc.perform(post("/api/sensors")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "sensorId": "%s",
+                "terminalId": "%s"
+                }
+                """.formatted(sensorId, terminalId)))
+            .andExpect(status().isCreated());
+
+        // Verify
+        verify(service).register(new SensorRegistrationRequest(
+            sensorId,
+            terminalId,
+            null));
+    }
+
+    @Test
+    void testFetchSensorBySensorId() throws Exception {
+        // Arrange
+        String sensorId = "sensor.room_01-A";
+        String terminalId = "terminal.size_02-A";
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalId,
+            null,
+            OffsetDateTime.parse("2026-10-16T08:00:00Z"));
+
+        when(service.fetchSensorById(sensorId)).thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(get("/api/sensors/{sensorId}", sensorId))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value(sensorId))
+            .andExpect(jsonPath("$.terminalId").value(terminalId))
+            .andExpect(jsonPath("$.createdAt").exists());
+
+        // Verify
+        verify(service).fetchSensorById(sensorId);
+    }
+
+    @Test
+    void testFetchUnknownSensorBySensorId() throws Exception {
+        // Arrange
+        String sensorId = "sensor-unknown";
+
+        when(service.fetchSensorById(sensorId)).thenThrow(new SensorNotFoundException(sensorId));
+
+        // Act + Assert
+        mockMvc.perform(get("/api/sensors/{sensorId}", sensorId))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.code").value("SENSOR_NOT_FOUND"))
+            .andExpect(jsonPath("$.detail").value("Sensor '" + sensorId + "' not found."));
+
+        // Verify
+        verify(service).fetchSensorById(sensorId);
+    }
+
+    @Test
+    void testAssignTerminalToSensor() throws Exception {
+        // Arrange
+        String sensorId = "sensor-001";
+        SensorTerminalAssignmentRequest terminalRequest = new SensorTerminalAssignmentRequest("terminal-B");
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalRequest.terminalId(),
+            null,
+            OffsetDateTime.parse("2026-11-03T08:00:00Z"));
+
+        when(service.assignTerminalToSensor(sensorId, terminalRequest)).thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "%s"
+                }
+                """.formatted(terminalRequest.terminalId())))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value(sensorId))
+            .andExpect(jsonPath("$.terminalId").value(terminalRequest.terminalId()));
+
+        // Verify
+        verify(service).assignTerminalToSensor(sensorId, terminalRequest);
+    }
+
+    @Test
+    void testRejectTerminalAssignmentWhenAlreadyAssigned() throws Exception {
+        // Arrange
+        String sensorId = "sensor-001";
+        SensorTerminalAssignmentRequest request = new SensorTerminalAssignmentRequest("terminal-B");
+
+        when(service.assignTerminalToSensor(sensorId, request))
+            .thenThrow(new TerminalAlreadyAssignedException(request.terminalId()));
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                    "terminalId": "terminal-B"
+                }
+                """))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.code").value("TERMINAL_ALREADY_ASSIGNED"))
+            .andExpect(jsonPath("$.detail").value("Terminal 'terminal-B' is already assigned."));
+
+        // Verify
+        verify(service).assignTerminalToSensor(sensorId, request);
+    }
+
+    @Test
+    void testRejectAssignWhenTerminalIdIsNull() throws Exception {
+        // Arrange
+        String sensorId = "sensor-001";
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                    "terminalId": "   "
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectAssignTermianlIdWithTerminalIdTooLong() throws Exception {
+        // Arrange
+        String sensorId = "sensor-001";
+        String terminalId = "t".repeat(101);
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "%s"
+                }
+                """.formatted(terminalId)))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+            .andExpect(jsonPath("$.errors[0].message").value("terminalId must not exceed 100 characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRejectAssignTerminalWithInvalidTerminalId() throws Exception {
+        // Act + Assert
+        String sensorId = "sensor-001";
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "terminal A"
+                }
+                """))
+            .andExpect(status().isBadRequest())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.errors[0].field").value("terminalId"))
+            .andExpect(jsonPath("$.errors[0].message").value("terminalId contains invalid characters"));
+
+        // Verify
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void testRegisterAssignTerminalWithMaximumFieldLengths() throws Exception {
+        String sensorId = "sensor-001";
+        String terminalId = "t".repeat(100);
+        SensorTerminalAssignmentRequest terminalRequest = new SensorTerminalAssignmentRequest(terminalId);
+
+        Sensor saved = new Sensor(
+            sensorId,
+            terminalRequest.terminalId(),
+            null,
+            OffsetDateTime.parse("2026-11-03T08:00:00Z"));
+
+        when(service.assignTerminalToSensor(sensorId, terminalRequest)).thenReturn(saved);
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "%s"
+                }
+                """.formatted(terminalRequest.terminalId())))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.sensorId").value(sensorId))
+            .andExpect(jsonPath("$.terminalId").value(terminalRequest.terminalId()));
+
+        // Verify
+        verify(service).assignTerminalToSensor(sensorId, terminalRequest);
+    }
+
+    @Test
+    void testRejectAssignTerminalWithSensorUnknown() throws Exception {
+        String sensorId = "sensor-unknown";
+        String terminalId = "terminal-A";
+        SensorTerminalAssignmentRequest terminalRequest = new SensorTerminalAssignmentRequest(terminalId);
+
+        when(service.assignTerminalToSensor(sensorId, terminalRequest))
+            .thenThrow(new SensorNotFoundException(sensorId));
+
+        // Act + Assert
+        mockMvc.perform(put("/api/sensors/{sensorId}/terminal", sensorId)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                "terminalId": "%s"
+                }
+                """.formatted(terminalRequest.terminalId())))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(
+                MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("SENSOR_NOT_FOUND"))
+            .andExpect(jsonPath("$.detail")
+                .value("Sensor '" + sensorId + "' not found."));
+
+        // Verify
+        verify(service).assignTerminalToSensor(sensorId, terminalRequest);
+    }
+
+}

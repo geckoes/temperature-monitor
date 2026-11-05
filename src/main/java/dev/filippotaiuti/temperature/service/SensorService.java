@@ -1,0 +1,70 @@
+package dev.filippotaiuti.temperature.service;
+
+import java.time.OffsetDateTime;
+import java.util.Objects;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+
+import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
+import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
+import dev.filippotaiuti.temperature.entity.Sensor;
+import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
+import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
+import dev.filippotaiuti.temperature.exception.TerminalAlreadyAssignedException;
+import dev.filippotaiuti.temperature.repository.SensorRepository;
+
+@Service
+public class SensorService {
+
+    private final SensorRepository repository;
+
+    public SensorService(SensorRepository repository) {
+        this.repository = repository;
+    }
+
+    public Sensor register(SensorRegistrationRequest request) {
+        if (repository.existsById(request.sensorId())) {
+            throw new SensorAlreadyExistsException(request.sensorId());
+        }
+        if (repository.existsByTerminalId(request.terminalId())) {
+            throw new TerminalAlreadyAssignedException(request.terminalId());
+        }
+        Sensor sensor = new Sensor(
+            request.sensorId(),
+            request.terminalId(),
+            request.name(),
+            OffsetDateTime.now());
+        return repository.save(sensor);
+    }
+
+    public Sensor fetchSensorById(String sensorId) {
+        return repository.findById(sensorId)
+            .orElseThrow(() -> new SensorNotFoundException(sensorId));
+    }
+
+    public Sensor assignTerminalToSensor(String sensorId, SensorTerminalAssignmentRequest request) {
+        Sensor sensor = fetchSensorById(sensorId);
+
+        if (!Objects.equals(request.terminalId(), sensor.getTerminalId())
+            && repository.existsByTerminalId(request.terminalId())) {
+            throw new TerminalAlreadyAssignedException(request.terminalId());
+        }
+
+        Sensor updatedSensor = new Sensor(
+            sensor.getSensorId(),
+            request.terminalId(),
+            sensor.getName(),
+            sensor.getCreatedAt());
+
+        try {
+            return repository.save(updatedSensor);
+        } catch (DataIntegrityViolationException exception) {
+            if (repository.existsByTerminalId(request.terminalId())) {
+                throw new TerminalAlreadyAssignedException(request.terminalId());
+            }
+
+            throw exception;
+        }
+    }
+}

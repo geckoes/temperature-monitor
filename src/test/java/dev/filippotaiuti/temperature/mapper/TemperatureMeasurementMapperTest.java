@@ -30,16 +30,18 @@ class TemperatureMeasurementResponseMapperTest
                 OffsetDateTime.parse("2026-09-22T10:00:00+02:00");
 
         TemperatureMeasurement first = new TemperatureMeasurement(
-                new BigDecimal("21.5"),
-                TemperatureUnit.CELSIUS,
-                measuredAt,
-                "sensor-001");
+            new BigDecimal("21.5"),
+            TemperatureUnit.CELSIUS,
+            measuredAt,
+            "sensor-001",
+            null);
 
         TemperatureMeasurement second = new TemperatureMeasurement(
-                new BigDecimal("72.7"),
-                TemperatureUnit.FAHRENHEIT,
-                measuredAt,
-                "sensor-002");
+            new BigDecimal("72.7"),
+            TemperatureUnit.FAHRENHEIT,
+            measuredAt,
+            "sensor-002",
+            null);
 
         Pageable pageable = PageRequest.of(1, 2);
 
