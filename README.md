@@ -32,7 +32,12 @@ The project will progressively evolve toward simulated external sensors, observa
 - Receive temperature measurements through a REST API
 - Persist historical measurements in PostgreSQL
 - Support Celsius and Fahrenheit units
-- Associate measurements with logical sensor identifiers
+- Register and retrieve sensors with unique logical identifiers
+- Assign or replace a sensor's current terminal without rewriting measurement history
+- Associate accepted measurements with registered sensors through a database foreign key
+- Preserve terminal origin in measurements
+- Quarantine unknown sensors, unassigned or mismatching terminals, and measurement conflicts
+- Recognize identical retries and recover concurrent measurement insert conflicts
 - Preserve sensor-generated timestamps (`measuredAt`)
 - Record server-side ingestion timestamps separately (`createdAt`)
 - Query all measurements
@@ -123,6 +128,7 @@ A measurement received from a sensor contains:
 - `temperature`
 - `unit`
 - `sensorId`
+- `terminalId`
 - `measuredAt`
 
 The system additionally maintains:
@@ -158,12 +164,92 @@ This distinction becomes important when dealing with delayed events, retries, of
 
 # REST API
 
+## Sensor Registry
+
+Register a sensor before sending new measurements. The project currently models
+one terminal per logical sensor, with a terminal assigned to at most one sensor.
+
+### Register a sensor
+
+```http
+POST /api/sensors
+Content-Type: application/json
+```
+
+```json
+{
+  "sensorId": "sensor-001",
+  "terminalId": "terminal-A",
+  "name": "North Warehouse"
+}
+```
+
+Returns `201 Created`, a `Location: /api/sensors/sensor-001` header and:
+
+```json
+{
+  "sensorId": "sensor-001",
+  "terminalId": "terminal-A",
+  "name": "North Warehouse",
+  "createdAt": "2026-11-05T08:00:00Z"
+}
+```
+
+`sensorId` and `terminalId` are required, at most 100 characters long, and
+accept only ASCII letters, digits, dots, underscores and hyphens. Identifiers
+are case-sensitive. `name` is optional and at most 255 characters long.
+
+Existing sensor identifiers return `409 SENSOR_ALREADY_EXISTS`; an occupied
+terminal returns `409 TERMINAL_ALREADY_ASSIGNED` in the ordinary registration
+flow. Concurrent registration remains a documented limitation; see the
+[Sensor Domain decisions](docs/decisions/001-sensor-domain.md).
+
+### Retrieve a sensor
+
+```http
+GET /api/sensors/sensor-001
+```
+
+Returns `200 OK` with the same sensor response shape, or a ProblemDetail
+response with `404` and code `SENSOR_NOT_FOUND`.
+
+### Assign or replace the current terminal
+
+```http
+PUT /api/sensors/sensor-001/terminal
+Content-Type: application/json
+```
+
+```json
+{
+  "terminalId": "terminal-B"
+}
+```
+
+Returns `200 OK` with the updated sensor. Assigning the same terminal again
+also succeeds. The same terminal validation rules apply as for registration.
+
+The operation preserves `sensorId`, `name` and `createdAt`, and does not
+rewrite measurements already stored. It also supports historical sensors
+whose current terminal is still `null`.
+
+An unknown sensor returns `404 SENSOR_NOT_FOUND`. A terminal occupied by
+another sensor returns `409 TERMINAL_ALREADY_ASSIGNED`, including the
+tested case of two sensors concurrently claiming one available terminal.
+Invalid request fields return `400 VALIDATION_FAILED`.
+
+There is currently no API to remove an assignment or rename a sensor identifier.
+
+---
+
 ## Create a Measurement
 
 ```http
 POST /api/measurements
 Content-Type: application/json
 ```
+
+The example assumes that `sensor-001` is registered with `terminal-A`.
 
 Example request:
 
@@ -172,11 +258,12 @@ Example request:
   "temperature": 23.5,
   "unit": "CELSIUS",
   "sensorId": "sensor-001",
+  "terminalId": "terminal-A",
   "measuredAt": "2026-09-07T10:00:00Z"
 }
 ```
 
-Example response:
+Example response (`200 OK`):
 
 ```json
 {
@@ -184,11 +271,53 @@ Example response:
   "temperature": 23.5,
   "unit": "CELSIUS",
   "sensorId": "sensor-001",
+  "terminalId": "terminal-A",
   "measuredAt": "2026-09-07T10:00:00Z"
 }
 ```
 
-Persistence-specific fields such as `createdAt` are deliberately not exposed by the current API contract.
+Persistence-specific fields such as `createdAt` are deliberately not exposed
+in measurement responses. Historical measurements may have `terminalId: null`;
+new submissions must include a terminal identifier.
+
+### Retries and quarantine
+
+The history key is `(sensorId, measuredAt)`. An identical retry returns the
+original measurement with `200 OK`, without adding a history row. Content is
+compared using the numeric temperature value, unit and terminal identifier;
+for example, `23.5` and `23.50` are equivalent.
+
+A syntactically valid sample that cannot enter history is retained in quarantine.
+It returns `200 OK` with a different response shape:
+
+```json
+{
+  "status": "QUARANTINED",
+  "reason": "UNKNOWN_SENSOR"
+}
+```
+
+| Reason | Condition |
+| --- | --- |
+| `UNKNOWN_SENSOR` | The logical sensor is not registered. |
+| `TERMINAL_NOT_ASSIGNED` | The registered sensor has no current terminal. |
+| `TERMINAL_MISMATCH` | The submitted terminal differs from the current assignment. |
+| `MEASUREMENT_CONFLICT` | History already contains a different sample for that sensor and instant. |
+
+Identical historical retries are recognized before checking the current sensor
+assignment. A different sample for an existing history key is quarantined as a
+measurement conflict before registry checks.
+
+Quarantine deduplication uses `sensorId`, `terminalId`, `measuredAt`,
+`temperature` and `unit`. An exact retry reuses the existing quarantine entry,
+preserving its reason and reception time, even if the registry has since changed.
+An identical sample already in history takes precedence over a quarantine entry.
+Clients must inspect the body: HTTP `200` alone does not distinguish accepted
+history from quarantine.
+
+Database constraints and recovery cover concurrent identical quarantine samples,
+identical accepted measurements, and competing measurements with different content.
+Quarantine review, correction, deletion and reprocessing APIs are deferred.
 
 ---
 
@@ -348,7 +477,7 @@ returns:
 ### POST validation errors
 
 `POST /api/measurements` validates the required request fields:
-`temperature`, `unit`, `sensorId`, and `measuredAt`.
+`temperature`, `unit`, `sensorId`, `terminalId`, and `measuredAt`.
 
 Missing or blank values return `VALIDATION_FAILED` with field-level errors:
 
@@ -432,6 +561,20 @@ For example, repository integration tests verify that sensor and time-range filt
 
 Transactional tests are rolled back to keep tests isolated.
 
+### Migration, service integration and concurrency tests
+
+Migration tests create isolated schemas and verify upgrades from existing history,
+including preservation of existing sensors and measurements. Service integration
+tests flush and clear the persistence context before checking terminal changes
+and unchanged measurement history.
+
+Concurrency tests use real PostgreSQL transactions and barriers to force competing
+requests past their initial lookup. These tests deliberately have no surrounding
+test transaction and clean up their committed test records explicitly.
+
+The M03 completion candidate passed **110 tests locally**. CI executes the suite
+on pull requests targeting `master` and pushes to `master`.
+
 ### Application Context Test
 
 The application context test verifies that the Spring Boot application can start with the expected configuration.
@@ -480,7 +623,22 @@ Secrets and machine-specific configuration must not be committed to the reposito
 
 Database schema evolution is managed using **Flyway**.
 
-The initial migration creates the `temperature_measurements` table together with its integrity constraints.
+The migrations create and evolve the following structures:
+
+| Version | Change |
+| --- | --- |
+| V1 | Measurement history and unique sensor/measurement-time key |
+| V2 | Sensor registry with a unique current terminal |
+| V3 | Backfill distinct sensor identifiers from existing history |
+| V4 | Foreign key from accepted measurements to registered sensors |
+| V5 | Nullable measurement terminal origin for compatibility with existing history |
+| V6 | Independent quarantine storage without a sensor foreign key |
+| V7 | Unique quarantine sample content |
+
+Backfilled sensors have no inferred terminal or name. Historical measurements
+retain `terminal_id = NULL`; no fictitious default terminal is introduced.
+New API submissions require `terminalId`. Quarantine permits unknown sensors
+without creating registry entries automatically.
 
 Flyway owns schema evolution, while Hibernate/JPA maps the application model onto that schema.
 
@@ -531,9 +689,10 @@ cp src/main/resources/application-local.example.properties \
 Planned improvements include:
 
 - richer query capabilities
-- dedicated sensor registry
-- external sensor simulator
-- automated sensor traffic generation
+- external sensor simulator and automated sensor traffic generation
+- frontend dashboard
+- public demo and deployment
+- operator review of quarantined samples
 - observability and application metrics
 - resilience scenarios
 - asynchronous ingestion and messaging evaluation
@@ -572,4 +731,10 @@ This project is also intended as a practical exploration of backend engineering 
 
 🚧 **Work in progress**
 
-The repository is intentionally developed incrementally. Features are added through small, tested milestones rather than as a single finished implementation.
+M03 implements the Sensor Domain: registry, terminal assignment, historical
+association, quarantine, migration compatibility and tested concurrency recovery.
+The [Sensor Domain decisions](docs/decisions/001-sensor-domain.md) record the
+contract, rationale and remaining limitations.
+
+The repository is intentionally developed incrementally. The next product step
+is Sensor Simulator, followed by Frontend Dashboard and Public Demo & Deployment.
