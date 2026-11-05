@@ -40,11 +40,7 @@ public class TemperatureMeasurementService {
         if (existing.isPresent()) {
             TemperatureMeasurement stored = existing.get();
 
-            boolean sameContent = stored.getTemperature().compareTo(request.getTemperature()) == 0
-                && stored.getUnit() == request.getUnit()
-                && Objects.equals(stored.getTerminalId(), request.getTerminalId());
-
-            if (sameContent) {
+            if (hasSameContent(stored, request)) {
                 return new MeasurementIngestionResult(
                     MeasurementIngestionStatus.ALREADY_STORED,
                     stored,
@@ -87,12 +83,42 @@ public class TemperatureMeasurementService {
             request.getMeasuredAt(),
             request.getSensorId(),
             request.getTerminalId());
-        TemperatureMeasurement saved = repository.save(measurement);
+        TemperatureMeasurement saved;
+
+        try {
+            saved = repository.save(measurement);
+        } catch (DataIntegrityViolationException exception) {
+            Optional<TemperatureMeasurement> concurrent = repository
+                .findBySensorIdAndMeasuredAt(
+                    request.getSensorId(),
+                    request.getMeasuredAt());
+
+            if (concurrent.isEmpty()) {
+                throw exception;
+            }
+
+            TemperatureMeasurement stored = concurrent.get();
+
+            if (!hasSameContent(stored, request)) {
+                return quarantine(request, QuarantinedReason.MEASUREMENT_CONFLICT);
+            }
+
+            return new MeasurementIngestionResult(
+                MeasurementIngestionStatus.ALREADY_STORED,
+                stored,
+                null);
+        }
 
         return new MeasurementIngestionResult(
             MeasurementIngestionStatus.STORED,
             saved,
             null);
+    }
+
+    private boolean hasSameContent(TemperatureMeasurement stored, TemperatureMeasurementRequest request) {
+        return stored.getTemperature().compareTo(request.getTemperature()) == 0
+            && stored.getUnit() == request.getUnit()
+            && Objects.equals(stored.getTerminalId(), request.getTerminalId());
     }
 
     private MeasurementIngestionResult quarantine(TemperatureMeasurementRequest request, QuarantinedReason reason) {
