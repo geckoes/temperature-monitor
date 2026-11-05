@@ -17,6 +17,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
 import dev.filippotaiuti.temperature.dto.SensorTerminalAssignmentRequest;
@@ -26,7 +27,7 @@ import dev.filippotaiuti.temperature.exception.SensorAlreadyExistsException;
 import dev.filippotaiuti.temperature.exception.SensorNotFoundException;
 import dev.filippotaiuti.temperature.repository.SensorRepository;
 
-@ExtendWith (MockitoExtension.class)
+@ExtendWith(MockitoExtension.class)
 public class SensorServiceTest {
 
     @Mock
@@ -41,15 +42,13 @@ public class SensorServiceTest {
         SensorRegistrationRequest request = new SensorRegistrationRequest(
             "sensor-001",
             "terminal-A",
-            "North Warehouse"
-        );
+            "North Warehouse");
 
         Sensor sensor = new Sensor(
             "sensor-001",
             "terminal-A",
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.save(any(Sensor.class))).thenReturn(sensor);
 
@@ -79,8 +78,7 @@ public class SensorServiceTest {
         SensorRegistrationRequest request = new SensorRegistrationRequest(
             "sensor-002",
             "terminal-A",
-            null
-        );
+            null);
 
         when(repository.existsByTerminalId("terminal-A")).thenReturn(true);
 
@@ -99,8 +97,7 @@ public class SensorServiceTest {
         SensorRegistrationRequest request = new SensorRegistrationRequest(
             "sensor-001",
             "terminal-B",
-            null
-        );
+            null);
 
         when(repository.existsById("sensor-001")).thenReturn(true);
 
@@ -120,8 +117,7 @@ public class SensorServiceTest {
             "sensor-001",
             "terminal-A",
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.findById("sensor-001")).thenReturn(Optional.of(sensor));
 
@@ -153,22 +149,21 @@ public class SensorServiceTest {
             "sensor-001",
             "terminal-A",
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.findById("sensor-001"))
             .thenReturn(Optional.of(sensor));
-        
+
         when(repository.save(any(Sensor.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
         Sensor result = service.assignTerminalToSensor("sensor-001", new SensorTerminalAssignmentRequest("terminal-B"));
         ArgumentCaptor<Sensor> captor = ArgumentCaptor.forClass(Sensor.class);
-        
+
         // Verify
         verify(repository).save(captor.capture());
-        
+
         // Assert
         Sensor submitted = captor.getValue();
         assertEquals("sensor-001", submitted.getSensorId());
@@ -176,7 +171,7 @@ public class SensorServiceTest {
         assertEquals("North Warehouse", submitted.getName());
         assertEquals(OffsetDateTime.parse("2026-10-16T00:00:00Z"), submitted.getCreatedAt());
         assertSame(submitted, result);
-    }    
+    }
 
     @Test
     void testAssignTerminalToSensorWhenTerminalIsNull() {
@@ -185,22 +180,21 @@ public class SensorServiceTest {
             "sensor-001",
             null,
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.findById("sensor-001"))
             .thenReturn(Optional.of(sensor));
-        
+
         when(repository.save(any(Sensor.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
         Sensor result = service.assignTerminalToSensor("sensor-001", new SensorTerminalAssignmentRequest("terminal-B"));
         ArgumentCaptor<Sensor> captor = ArgumentCaptor.forClass(Sensor.class);
-        
+
         // Verify
         verify(repository).save(captor.capture());
-        
+
         // Assert
         Sensor submitted = captor.getValue();
         assertEquals("sensor-001", submitted.getSensorId());
@@ -208,7 +202,7 @@ public class SensorServiceTest {
         assertEquals("North Warehouse", submitted.getName());
         assertEquals(OffsetDateTime.parse("2026-10-16T00:00:00Z"), submitted.getCreatedAt());
         assertSame(submitted, result);
-    }    
+    }
 
     @Test
     void testTerminalHasAlreadyBeenAssigned() {
@@ -217,12 +211,11 @@ public class SensorServiceTest {
             "sensor-001",
             "terminal-A",
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.findById("sensor-001"))
-        .thenReturn(Optional.of(sensor));
-        
+            .thenReturn(Optional.of(sensor));
+
         when(repository.existsByTerminalId("terminal-B"))
             .thenReturn(true);
 
@@ -231,7 +224,7 @@ public class SensorServiceTest {
             () -> service.assignTerminalToSensor(
                 "sensor-001",
                 new SensorTerminalAssignmentRequest("terminal-B")));
-            
+
         // Verify
         verify(repository, never()).save(any(Sensor.class));
     }
@@ -243,22 +236,21 @@ public class SensorServiceTest {
             "sensor-001",
             "terminal-A",
             "North Warehouse",
-            OffsetDateTime.parse("2026-10-16T00:00:00Z")
-        );
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
 
         when(repository.findById("sensor-001"))
             .thenReturn(Optional.of(sensor));
-        
+
         when(repository.save(any(Sensor.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        
+
         // Act
         Sensor result = service.assignTerminalToSensor("sensor-001", new SensorTerminalAssignmentRequest("terminal-A"));
         ArgumentCaptor<Sensor> captor = ArgumentCaptor.forClass(Sensor.class);
-        
+
         // Verify
         verify(repository).save(captor.capture());
-        
+
         // Assert
         Sensor submitted = captor.getValue();
         assertEquals("sensor-001", submitted.getSensorId());
@@ -266,19 +258,49 @@ public class SensorServiceTest {
         assertEquals("North Warehouse", submitted.getName());
         assertEquals(OffsetDateTime.parse("2026-10-16T00:00:00Z"), submitted.getCreatedAt());
         assertSame(submitted, result);
-    }    
+    }
 
     @Test
     void testAssignTerminalToUnknownSensor() {
         // Arrange
         when(repository.findById("sensor-unknown"))
             .thenReturn(Optional.empty());
-        
+
         // Act + Assert
-        assertThrows(SensorNotFoundException.class, () -> service.assignTerminalToSensor("sensor-unknown", new SensorTerminalAssignmentRequest("terminal-B")));
-        
+        assertThrows(SensorNotFoundException.class,
+            () -> service.assignTerminalToSensor("sensor-unknown", new SensorTerminalAssignmentRequest("terminal-B")));
+
         // Verify
         verify(repository, never()).save(any(Sensor.class));
-    }    
+    }
 
+    @Test
+    void testPropagatePersistenceFailureWhenTerminalIsStillFree() {
+        // Arrange
+        Sensor sensor = new Sensor(
+            "sensor-001",
+            "terminal-A",
+            "North Warehouse",
+            OffsetDateTime.parse("2026-10-16T00:00:00Z"));
+
+        when(repository.findById("sensor-001"))
+            .thenReturn(Optional.of(sensor));
+
+        when(repository.existsByTerminalId("terminal-B"))
+            .thenReturn(false);
+
+        DataIntegrityViolationException failure = new DataIntegrityViolationException("persistence failure");
+
+        when(repository.save(any(Sensor.class)))
+            .thenThrow(failure);
+
+        // Act + Assert
+        DataIntegrityViolationException thrown = assertThrows(
+            DataIntegrityViolationException.class,
+            () -> service.assignTerminalToSensor(
+                "sensor-001",
+                new SensorTerminalAssignmentRequest("terminal-B")));
+
+        assertSame(failure, thrown);
+    }
 }

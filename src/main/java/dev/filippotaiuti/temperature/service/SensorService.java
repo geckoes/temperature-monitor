@@ -3,6 +3,7 @@ package dev.filippotaiuti.temperature.service;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import dev.filippotaiuti.temperature.dto.SensorRegistrationRequest;
@@ -33,8 +34,7 @@ public class SensorService {
             request.sensorId(),
             request.terminalId(),
             request.name(),
-            OffsetDateTime.now()
-        );
+            OffsetDateTime.now());
         return repository.save(sensor);
     }
 
@@ -46,7 +46,8 @@ public class SensorService {
     public Sensor assignTerminalToSensor(String sensorId, SensorTerminalAssignmentRequest request) {
         Sensor sensor = fetchSensorById(sensorId);
 
-        if ( !Objects.equals(request.terminalId(), sensor.getTerminalId()) && repository.existsByTerminalId(request.terminalId())) {
+        if (!Objects.equals(request.terminalId(), sensor.getTerminalId())
+            && repository.existsByTerminalId(request.terminalId())) {
             throw new TerminalAlreadyAssignedException(request.terminalId());
         }
 
@@ -54,9 +55,16 @@ public class SensorService {
             sensor.getSensorId(),
             request.terminalId(),
             sensor.getName(),
-            sensor.getCreatedAt()
-        );
+            sensor.getCreatedAt());
 
-        return repository.save(updatedSensor);
+        try {
+            return repository.save(updatedSensor);
+        } catch (DataIntegrityViolationException exception) {
+            if (repository.existsByTerminalId(request.terminalId())) {
+                throw new TerminalAlreadyAssignedException(request.terminalId());
+            }
+
+            throw exception;
+        }
     }
 }
